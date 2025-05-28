@@ -1,0 +1,6 @@
+data
+results
+saved_models
+visualization
+wandb
+*/__pycache__/*
