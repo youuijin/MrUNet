@@ -6,9 +6,6 @@ from networks.VecInt import VecInt
 import wandb
 from datetime import datetime
 
-import torch.nn as nn
-
-
 class VoxelMorph_Trainer(Trainer):
     def __init__(self, args):
         assert args.method in ['VM', 'VM-diff']
