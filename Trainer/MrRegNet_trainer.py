@@ -44,7 +44,7 @@ class MrRegNet_Trainer(Trainer):
         self.reset_logs()
 
         if 'diff' in args.method:
-            self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7)
+            self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7, multi=True)
 
         super().__init__(args, config)
 

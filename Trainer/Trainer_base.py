@@ -8,7 +8,7 @@ from utils.dataset import set_dataloader
 
 # logging - wandb
 import wandb, os, torch
-# wandb.login(key="87539aeaa75ad2d8a28ec87d70e5d6ce1277c544")
+wandb.login(key="87539aeaa75ad2d8a28ec87d70e5d6ce1277c544")
 
 import matplotlib.pyplot as plt
 from networks.U_Net import U_Net

@@ -46,19 +46,38 @@ class SpatialTransformer(nn.Module):
 
         return nnf.grid_sample(src, new_locs, align_corners=True, mode=self.mode)
 
+class DynamicSpatialTransformer(nn.Module):
+    def __init__(self, mode='bilinear'):
+        super().__init__()
+        self.mode = mode
+        self.transformer_cache = nn.ModuleDict()
+
+    def forward(self, src, flow):
+        # key = str(flow.shape[2:])  # e.g., "(160, 192, 160)"
+        key = str(flow.shape[2])
+
+        if key not in self.transformer_cache:
+            # print(f"[Info] Creating new SpatialTransformer for shape {flow.shape[2:]}")
+            self.transformer_cache[key] = SpatialTransformer(flow.shape[2:], mode=self.mode)
+
+        transformer = self.transformer_cache[key]
+        return transformer(src, flow)
 
 class VecInt(nn.Module):
     """
     Integrates a vector field via scaling and squaring.
     """
 
-    def __init__(self, inshape, nsteps):
+    def __init__(self, inshape, nsteps, multi=False):
         super().__init__()
 
         assert nsteps >= 0, 'nsteps should be >= 0, found: %d' % nsteps
         self.nsteps = nsteps
         self.scale = 1.0 / (2 ** self.nsteps)
-        self.transformer = SpatialTransformer(inshape)
+        if not multi:
+            self.transformer = SpatialTransformer(inshape)
+        else:
+            self.transformer = DynamicSpatialTransformer()
 
     def forward(self, vec):
         vec = vec * self.scale

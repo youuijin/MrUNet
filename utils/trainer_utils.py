@@ -9,7 +9,7 @@ def set_trainer(args):
         trainer = VoxelMorph_Trainer(args)
     elif args.method == "VM-Un" or args.method == 'VM-Un-diff':
         trainer = VoxelMorph_Uncert_Trainer(args)
-    elif args.method == "Mr":
+    elif args.method == "Mr" or args.method =='Mr-diff':
         trainer = MrRegNet_Trainer(args)
     # elif args.method == "Mr-Un":
     #     trainer = MrRegNet_Trainer(out_layers=args.out_layers, out_channels=6, loss=args.loss, reg=args.reg, img_sigma=args.img_sigma, prior_lambda=args.prior_lambda) 

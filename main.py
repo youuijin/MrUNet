@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--method", type=str, default='VM', choices=['VM', 'Mr', 'VM-Un', 'Mr-Un', 'VM-diff', 'VM-Un-diff'])
+    parser.add_argument("--method", type=str, default='VM', choices=['VM', 'Mr', 'VM-Un', 'Mr-Un', 'VM-diff', 'Mr-diff', 'VM-Un-diff'])
     parser.add_argument("--loss", type=str, default="MSE", choices=['NCC', 'MSE']) #TODO: add Uncertainty version
     parser.add_argument("--reg", type=str, default=None)
     parser.add_argument("--alpha", type=str, default=None)
