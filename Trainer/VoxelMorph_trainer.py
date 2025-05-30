@@ -11,7 +11,7 @@ class VoxelMorph_Trainer(Trainer):
         assert args.method in ['VM', 'VM-diff']
         # setting log name first!
         if args.reg is None:
-            self.log_name = f'{args.method}_{args.loss}'
+            self.log_name = f'{args.method}_{args.loss}(tv_0.0)'
         else:
             self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha})'
         # add start time
