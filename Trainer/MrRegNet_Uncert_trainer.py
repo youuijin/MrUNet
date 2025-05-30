@@ -11,12 +11,12 @@ import torch.nn.functional as F
 
 class MrRegNet_Uncert_Trainer(Trainer):
     def __init__(self, args):
-        assert args.method in ['Mr', 'Mr-diff']
+        assert args.method in ['Mr-Un', 'Mr-Un-diff']
         # setting log name first!
         if args.reg is None:
             self.log_name = f'{args.method}_{args.loss}'
         else:
-            self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha})'
+            self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha}_{args.sca_fn}_{args.alp_sca})'
         # add start time
         now = datetime.now().strftime("%m-%d_%H-%M")
         self.log_name = f'{self.log_name}_{now}'
@@ -29,16 +29,15 @@ class MrRegNet_Uncert_Trainer(Trainer):
             "learning_rate": args.lr,
             "loss":args.loss,
             "reg": args.reg,
-            "alpha": args.alpha,
-            "alp_sca": args.alp_sca,
-            "sca_fn": args.sca_fn
+            "image_sigma": args.image_sigma,
+            "prior_lambda": args.prior_lambda
         }
 
         self.args = args
-        self.out_channels = 3
+        self.out_channels = 6
         self.out_layers = 3
 
-        self.loss_fn = Train_Loss(args.loss, args.reg, args.alpha, alpha_scale=args.alp_sca, scale_fn=args.sca_fn)
+        self.loss_fn = Uncert_Loss(args.loss, args.reg, image_sigma, prior_lambda)
         self.reset_logs()
 
         if 'diff' in args.method:
@@ -47,20 +46,28 @@ class MrRegNet_Uncert_Trainer(Trainer):
         super().__init__(args, config)
 
     def forward(self, img, template, stacked_input, val=False):
-        out_list, _ = self.model(stacked_input)
+        mean_list, std_list, _, _ = self.model(stacked_input)
         if val:
-            out_list = out_list[-1:]
+            mean_list = mean_list[-1:]
+            std_list = std_list[-1:]
         
         tot_loss = torch.tensor(0.0).to(img.device)
         # iteration accross resolution level
-        for i, out in enumerate(out_list):
-            cur_img = F.interpolate(img, size=out.shape[2:], mode='nearest')
-            cur_template = F.interpolate(template, size=out.shape[2:], mode='nearest') 
-            if self.method == 'Mr':
-                deformed_img = apply_deformation_using_disp(cur_img, out)
-            elif self.method == 'Mr-diff':
+        for i, (mean, std) in enumerate(zip(mean_list, std_list)):
+            cur_img = F.interpolate(img, size=mean.shape[2:], mode='nearest')
+            cur_template = F.interpolate(template, size=mean.shape[2:], mode='nearest') 
+
+            if val == False:
+                eps_r = torch.randn_like(mean)
+                sampled_disp = mean + eps_r * std
+            else:
+                sampled_disp = mean
+            
+            if self.method == 'Mr-Un':
+                deformed_img = apply_deformation_using_disp(cur_img, sampled_disp)
+            elif self.method == 'Mr-Un-diff':
                 # velocity field to deformation field
-                accumulate_disp = self.integrate(out)
+                accumulate_disp = self.integrate(sampled_disp)
                 deformed_img = apply_deformation_using_disp(cur_img, accumulate_disp)
             
             loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, cur_template, out)

@@ -48,9 +48,12 @@ class VoxelMorph_Uncert_Trainer(Trainer):
         mean = mean_list[-1] # use only last one
         std = std_list[-1]
 
-        # sample in Gaussian distribution
-        eps_r = torch.randn_like(mean)
-        sampled_disp = mean + eps_r * std
+        if val==False:
+            # sample in Gaussian distribution
+            eps_r = torch.randn_like(mean)
+            sampled_disp = mean + eps_r * std
+        else:
+            sampled_disp = mean
 
         if self.method == 'VM-Un':
             deformed_img = apply_deformation_using_disp(img, sampled_disp)

@@ -5,3 +5,4 @@ visualization
 wandb
 */__pycache__/*
 *.sh
+logs/
