@@ -1,20 +1,13 @@
-# import torch, os
+import wandb, os, torch, shutil
 import torch.optim as optim
-
-# from utils.utils import set_seed
-# from utils.loss import TrainLoss
-from utils.dataset import set_dataloader
-# from utils.model import R2Net_UNet
-
-# logging - wandb
-import wandb, os, torch
-wandb.login(key="87539aeaa75ad2d8a28ec87d70e5d6ce1277c544")
-
 import matplotlib.pyplot as plt
+from utils.dataset import set_dataloader
 from networks.U_Net import U_Net
-
 from utils.utils import set_seed, save_middle_slices
 from tqdm import tqdm
+
+# logging - wandb
+wandb.login(key="87539aeaa75ad2d8a28ec87d70e5d6ce1277c544")
 
 class Trainer:
     def __init__(self, args, config=None):
@@ -58,7 +51,7 @@ class Trainer:
                     if best_loss > cur_loss:
                         cnt = 0
                         best_loss = cur_loss
-                        torch.save(self.model.state_dict(), f'./saved_models/{self.log_name}.pt')
+                        torch.save(self.model.state_dict(), f'./results/saved_models/not_finished/{self.log_name}.pt')
                     else: 
                         cnt+=1
 
@@ -68,6 +61,12 @@ class Trainer:
             if epoch % self.save_interval == 0:
                 with torch.no_grad():
                     self.save_imgs(epoch, self.save_num)
+
+        # move trained model to complete folder 
+        try:
+            shutil.move(f'./results/saved_models/not_finished/{self.log_name}.pt', f'./results/saved_models/completed/{self.log_name}.pt')
+        except Exception as e:
+            print(f"Failed to move ./results/saved_models/not_finished/{self.log_name}.pt: {e}")
 
         wandb.finish()
 

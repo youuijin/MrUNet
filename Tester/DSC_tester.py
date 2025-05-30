@@ -8,9 +8,9 @@ import nibabel as nib
 from tqdm import tqdm
 
 class DSC_Tester(Tester):
-    def __init__(self, args):
+    def __init__(self, model_path, args):
         self.csv_path = 'results/csvs/dice_results.csv'
-        super().__init__(args)
+        super().__init__(model_path, args)
         _, _, self.save_loader = set_dataloader(args.image_path, args.template_path, batch_size=1, return_path=True)
         self.label_path = args.label_path
         self.lut = self.load_freesurfer_lut()
@@ -56,21 +56,9 @@ class DSC_Tester(Tester):
             img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
 
-            if self.method == 'VM' or self.method == 'Mr':
-                disp, _ = self.model(stacked_input)
-                disp = disp[-1]
-            elif self.method == 'VM-diff' or self.method == 'Mr-diff':
-                disp, _ = self.model(stacked_input)
-                out = disp[-1]
-                disp = self.integrate(out)
-                # deformed_img = apply_deformation_using_disp(img, accumulate_disp)
-            elif self.method == 'VM-Un' or self.method == 'Mr-Un':
-                disp, _, _, _ = self.model(stacked_input)
-                disp = disp[-1]
-            elif self.method == 'VM-Un-diff' or self.method == 'Mr-Un-diff':
-                disp, _, _, _ = self.model(stacked_input)
-                out = disp[-1]
-                disp = self.integrate(out)
+            disp = self.model(stacked_input)[0][-1]
+            if 'diff' in self.method:
+                disp = self.integrate(disp)
 
             deformed_seg = apply_deformation_using_disp(seg, disp, mode='nearest')
 

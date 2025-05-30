@@ -9,9 +9,9 @@ import numpy as np
 from tqdm import tqdm
 
 class Blur_Tester(Tester):
-    def __init__(self, args):
+    def __init__(self, model_path, args):
         self.csv_path = 'results/csvs/blur_results.csv'
-        super().__init__(args)
+        super().__init__(model_path, args)
 
     def test(self):
         aff = None
@@ -22,20 +22,9 @@ class Blur_Tester(Tester):
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
             aff = affine.squeeze()
 
-            if self.method == 'VM' or self.method == 'Mr':
-                disp, _ = self.model(stacked_input)
-                disp = disp[-1]
-            elif self.method == 'VM-diff' or self.method == 'Mr-diff':
-                disp, _ = self.model(stacked_input)
-                out = disp[-1]
-                disp = self.integrate(out)
-            elif self.method == 'VM-Un'or self.method == 'Mr-Un':
-                disp, _, _, _ = self.model(stacked_input)
-                disp = disp[-1]
-            elif self.method == 'VM-Un-diff' or self.method == 'Mr-Un-diff':
-                disp, _, _, _ = self.model(stacked_input)
-                out = disp[-1]
-                disp = self.integrate(out)
+            disp = self.model(stacked_input)[0][-1]
+            if 'diff' in self.method:
+                disp = self.integrate(disp)
             
             deformed_img = apply_deformation_using_disp(img, disp)
 

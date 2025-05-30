@@ -4,13 +4,14 @@ from networks.VecInt import VecInt
 import csv, torch
 
 class Tester:
-    def __init__(self, args):
+    def __init__(self, model_path, args):
         # check already tested
-        self.check_tested(args.model_path)
+        self.check_tested(model_path)
+        print(model_path)
 
         # set method
-        self.method = args.model_path.split("/")[-1].split("_")[0]
-        self.log_name = args.model_path.split("/")[-1]
+        self.method = model_path.split("/")[-1].split("_")[0]
+        self.log_name = model_path.split("/")[-1]
         if self.method == 'VM' or self.method == 'VM-diff' :
             self.out_channels = 3
             self.out_layers = 1
@@ -31,7 +32,7 @@ class Tester:
 
         # set model
         self.model = U_Net(out_channels=self.out_channels, out_layers=self.out_layers)
-        self.model.load_state_dict(torch.load(args.model_path, weights_only=True))
+        self.model.load_state_dict(torch.load(model_path, weights_only=True))
         self.model = self.model.cuda()
         self.model.eval()
         # set data
