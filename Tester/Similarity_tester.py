@@ -21,12 +21,12 @@ class Similarity_Tester(Tester):
             if self.method == 'VM' or self.method == 'Mr':
                 disp, _ = self.model(stacked_input)
                 disp = disp[-1]
-            elif self.method == 'VM-diff' or self.mehtod == 'Mr-diff':
+            elif self.method == 'VM-diff' or self.method == 'Mr-diff':
                 disp, _ = self.model(stacked_input)
                 out = disp[-1]
                 disp = self.integrate(out)
                 # deformed_img = apply_deformation_using_disp(img, accumulate_disp)
-            elif self.method == 'VM-Un' or self.mehtod == 'Mr-Un':
+            elif self.method == 'VM-Un' or self.method == 'Mr-Un':
                 disp, _, _, _ = self.model(stacked_input)
                 disp = disp[-1]
             elif self.method == 'VM-Un-diff' or self.method == 'Mr-Un-diff':
