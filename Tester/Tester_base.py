@@ -6,8 +6,11 @@ import csv, torch
 class Tester:
     def __init__(self, model_path, args):
         # check already tested
-        self.check_tested(model_path)
-        print(model_path)
+        tested = self.check_tested(model_path)
+        self.already_tested = False
+        if tested:
+            self.already_tested = True
+            return
 
         # set method
         self.method = model_path.split("/")[-1].split("_")[0]
@@ -51,7 +54,7 @@ class Tester:
 
         # 3. 값이 없으면 추가
         if model_path.split('/')[-1] not in existing_values:
-            pass
+            return False
         else:
-            exit()
+            return True
 

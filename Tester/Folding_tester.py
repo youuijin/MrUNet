@@ -10,6 +10,7 @@ class Folding_Tester(Tester):
         self.csv_path = 'results/csvs/folding_results.csv'
         super().__init__(model_path, args)
         
+        
     def test(self):
         fr = []
         for img, template, _, _, _ in tqdm(self.save_loader):

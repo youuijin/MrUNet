@@ -152,6 +152,8 @@ def measure_blur_fft_3d(volume, save_path=None, axis=2):
         center = (h // 2, w // 2)
         radius = min(h, w) // 4
         mask = np.zeros_like(magnitude_spectrum)
+        mask = mask.copy()
+
         cv2.circle(mask, center, radius, 1, thickness=-1)
         high_freq = magnitude_spectrum * (1 - mask)
         scores.append(np.mean(high_freq))

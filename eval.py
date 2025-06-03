@@ -28,6 +28,8 @@ def main(args):
 
     for model_path in paths:
         tester = set_tester(args.test_method, model_path, args)
+        if tester.already_tested:
+            continue
         print("Start evaluation:", tester.log_name)
         print("Evaluation method:", args.test_method)
 
