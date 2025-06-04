@@ -6,13 +6,24 @@ from networks.U_Net import U_Net
 from utils.utils import set_seed, save_middle_slices
 from tqdm import tqdm
 
+from datetime import datetime
+
 # logging - wandb
 wandb.login(key="87539aeaa75ad2d8a28ec87d70e5d6ce1277c544")
 
 class Trainer:
     def __init__(self, args, config=None):
         set_seed(seed=args.seed)
-        # os.makedirs(f'saved_images/{self.log_name}', exist_ok=True)
+        
+        if args.epochs != 200:
+            self.log_name = f'{self.log_name}_epochs{args.epochs}'
+        if args.lr_scheduler == 'multistep':
+            self.log_name = f'{self.log_name}_sche(multi_{args.lr_milestones})'
+
+        # add start time
+        now = datetime.now().strftime("%m-%d_%H-%M")
+        self.log_name = f'{self.log_name}_{now}'
+
         wandb.init(
             project=args.wandb_name,
             name=self.log_name,
@@ -36,13 +47,22 @@ class Trainer:
         self.save_num = args.save_num
         # self.val_detail = args.val_detail
 
+        # set learning rate scheduler 
+        tot_step_number = args.epochs * len(self.train_loader)
+        if args.lr_scheduler == 'none':
+            self.lr_scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lambda epoch: 1.0)
+        elif args.lr_scheduler == 'multistep':
+            # milestones = [i*tot_step_number for i in args.lr_milestones.split(',')]
+            milestones = [int(i)*len(self.train_loader) for i in args.lr_milestones.split(',')]
+            self.lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=milestones, gamma=0.1)
+
+        self.lr_scheduler.step(args.start_epoch*len(self.train_loader))
+
     def train(self):
         best_loss = 1e+9
         cnt = 0
         # save template img
-        for epoch in tqdm(range(self.epochs), position=0, desc='Epoch', leave=True):
-            if epoch < self.start_epoch:
-                continue
+        for epoch in tqdm(range(self.start_epoch, self.epochs), position=0, desc='Epoch', leave=True):
             self.train_1_epoch(epoch)
             if epoch % self.val_interval == 0:
                 with torch.no_grad():
@@ -73,7 +93,7 @@ class Trainer:
     def train_1_epoch(self, epoch):
         self.reset_logs()
         self.model.train()
-        for (img, template, _, _, _) in tqdm(self.train_loader, desc=f"Train", position=1, leave=False):
+        for (img, template, _, _, _) in tqdm(self.train_loader, desc=f"Train [lr {self.optimizer.param_groups[0]['lr']}]", position=1, leave=False):
             img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
 
@@ -84,6 +104,7 @@ class Trainer:
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+            self.lr_scheduler.step()
 
         # log into wandb
         self.log(epoch, phase='train')
