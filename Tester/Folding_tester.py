@@ -8,6 +8,8 @@ from tqdm import tqdm
 class Folding_Tester(Tester):
     def __init__(self, model_path, args):
         self.csv_path = 'results/csvs/folding_results.csv'
+        if args.external:
+            self.csv_path = 'results/csvs/folding_results_external.csv'
         super().__init__(model_path, args)
         
         

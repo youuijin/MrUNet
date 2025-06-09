@@ -1,7 +1,5 @@
 from Tester.Tester_base import Tester
 from utils.utils import apply_deformation_using_disp
-from utils.loss import MSE_loss, NCC_loss, SSIM_loss
-
 import torch, cv2
 import nibabel as nib
 import numpy as np
@@ -11,6 +9,10 @@ from tqdm import tqdm
 class Blur_Tester(Tester):
     def __init__(self, model_path, args):
         self.csv_path = 'results/csvs/blur_results.csv'
+        self.save_dir = 'visualization/avg_template'
+        if args.external:
+            self.csv_path = 'results/csvs/blur_results_external.csv'
+            self.save_dir = 'visualization/avg_template_external'
         super().__init__(model_path, args)
 
     def test(self):
@@ -39,14 +41,14 @@ class Blur_Tester(Tester):
         var_img = torch.var(deformed_stack, dim=0).squeeze()
 
         overall_variance = var_img.mean().item()
-        save_deformed_image(mean_img, f'visualization/avg_template/{self.log_name}_mean.nii.gz', torch.tensor(0.0), torch.tensor(1.0), aff)
-        save_deformed_image(var_img, f'visualization/avg_template/{self.log_name}_std.nii.gz', torch.tensor(0.0), torch.tensor(1.0), aff)
+        save_deformed_image(mean_img, f'{self.save_dir}/{self.log_name}_mean.nii.gz', torch.tensor(0.0), torch.tensor(1.0), aff)
+        save_deformed_image(var_img, f'{self.save_dir}/{self.log_name}_std.nii.gz', torch.tensor(0.0), torch.tensor(1.0), aff)
 
         mean_img = mean_img.detach().cpu().numpy() 
 
-        laplacian = measure_blur_laplacian_3d(mean_img, save_path=f'visualization/avg_template/{self.log_name}_laplacian.png')
-        tenengrad = measure_blur_tenengrad_3d(mean_img, save_path=f'visualization/avg_template/{self.log_name}_tenegrad.png')
-        fft = measure_blur_fft_3d(mean_img, save_path=f'visualization/avg_template/{self.log_name}_fft.png')
+        laplacian = measure_blur_laplacian_3d(mean_img, save_path=f'{self.save_dir}/{self.log_name}_laplacian.png')
+        tenengrad = measure_blur_tenengrad_3d(mean_img, save_path=f'{self.save_dir}/{self.log_name}_tenegrad.png')
+        fft = measure_blur_fft_3d(mean_img, save_path=f'{self.save_dir}/{self.log_name}_fft.png')
 
         results = [self.log_name, round(overall_variance, 5), round(laplacian,5), round(tenengrad,5), round(fft, 5)]
         self.save_results(self.csv_path, results)

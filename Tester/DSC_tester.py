@@ -10,6 +10,8 @@ from tqdm import tqdm
 class DSC_Tester(Tester):
     def __init__(self, model_path, args):
         self.csv_path = 'results/csvs/dice_results.csv'
+        if args.external:
+            self.csv_path = 'results/csvs/dice_results_external.csv'
         super().__init__(model_path, args)
         _, _, self.save_loader = set_dataloader(args.image_path, args.template_path, batch_size=1, return_path=True)
         self.label_path = args.label_path

@@ -10,6 +10,8 @@ from tqdm import tqdm
 class Similarity_Tester(Tester):
     def __init__(self, model_path, args):
         self.csv_path = 'results/csvs/similar_results.csv'
+        if args.external:
+            self.csv_path = 'results/csvs/similar_results_external.csv'
         super().__init__(model_path, args)
 
     def test(self):

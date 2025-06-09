@@ -7,6 +7,8 @@ from Tester.Folding_tester import Folding_Tester
 from Tester.Similarity_tester import Similarity_Tester
 from Tester.Blur_tester import Blur_Tester
 
+from utils.utils import set_seed
+
 def set_tester(test_method, model_path, args):
     if test_method == 'dice':
         tester = DSC_Tester(model_path, args)
@@ -27,6 +29,7 @@ def main(args):
         paths = [f'{args.model_dir}/{p}' for p in paths]
 
     for model_path in paths:
+        set_seed()
         tester = set_tester(args.test_method, model_path, args)
         if tester.already_tested:
             continue
@@ -48,6 +51,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--model_path", type=str, default=None)
     parser.add_argument("--model_dir", type=str, default='results/saved_models/completed')
+
+    parser.add_argument("--external", action='store_true', default=False)
     
     parser.add_argument("--save_num", type=int, default=0)
 
