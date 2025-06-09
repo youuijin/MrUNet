@@ -17,9 +17,6 @@ class MrRegNet_Uncert_Trainer(Trainer):
             self.log_name = f'{args.method}_{args.loss}'
         else:
             self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha}_{args.sca_fn}_{args.alp_sca})'
-        # add start time
-        now = datetime.now().strftime("%m-%d_%H-%M")
-        self.log_name = f'{self.log_name}_{now}'
         self.method = args.method
 
         config={

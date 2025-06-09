@@ -19,9 +19,7 @@ class MrRegNet_Trainer(Trainer):
             self.log_name = f'{args.method}_{args.loss}(tv_0.0)'
         else:
             self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha})'
-        # add start time
-        now = datetime.now().strftime("%m-%d_%H-%M")
-        self.log_name = f'{self.log_name}_{now}'
+        
         self.method = args.method
 
         config={

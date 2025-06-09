@@ -15,9 +15,6 @@ class VoxelMorph_Uncert_Trainer(Trainer):
         assert args.method in ['VM-Un', 'VM-Un-diff']
         # setting log name first!
         self.log_name = f'{args.method}_({args.reg}_{args.image_sigma}_{args.prior_lambda})'
-        # add start time
-        now = datetime.now().strftime("%m-%d_%H-%M")
-        self.log_name = f'{self.log_name}_{now}'
         self.method = args.method
 
         config={

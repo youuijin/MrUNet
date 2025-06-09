@@ -4,7 +4,7 @@ from utils.loss import Train_Loss
 from utils.utils import apply_deformation_using_disp
 from networks.VecInt import VecInt
 import wandb
-from datetime import datetime
+
 
 class VoxelMorph_Trainer(Trainer):
     def __init__(self, args):
@@ -14,9 +14,6 @@ class VoxelMorph_Trainer(Trainer):
             self.log_name = f'{args.method}_{args.loss}(tv_0.0)'
         else:
             self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha})'
-        # add start time
-        now = datetime.now().strftime("%m-%d_%H-%M")
-        self.log_name = f'{self.log_name}_{now}'
         self.method = args.method
 
         config={

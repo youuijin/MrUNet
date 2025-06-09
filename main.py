@@ -38,6 +38,8 @@ if __name__ == "__main__":
     # parser.add_argument("--val_detail", default=False, action='store_true')
 
     parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--lr_scheduler", type=str, default='none', choices=['none', 'multistep'])
+    parser.add_argument("--lr_milestones", type=str, default=None)
 
     # log options
     parser.add_argument("--wandb_name", type=str, default='rebrain')
