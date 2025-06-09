@@ -4,8 +4,8 @@ from torch.utils.data import random_split
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 
-def set_dataloader(image_paths, template_path, batch_size, numpy=True, return_path=False):
-    dataset = MedicalImageDataset(image_paths, template_path, return_path=return_path)
+def set_dataloader(image_paths, template_path, batch_size, numpy=True, return_path=False, return_mask=False):
+    dataset = MedicalImageDataset(image_paths, template_path, return_path=return_path, return_mask=return_mask)
     dataset_size = len(dataset)
     train_size = int(dataset_size * 0.8)  # 80%
     val_size = int(dataset_size * 0.1)    # 10%
@@ -25,7 +25,7 @@ def set_dataloader(image_paths, template_path, batch_size, numpy=True, return_pa
 
 # Define dataset class
 class MedicalImageDataset(Dataset):
-    def __init__(self, root_dir, template_path, transform=None, return_path=False):
+    def __init__(self, root_dir, template_path, transform=None, return_path=False, return_mask=False):
         self.image_paths = []
         self.image_paths = [f'{root_dir}/{f}' for f in os.listdir(root_dir)]
         template = nib.load(template_path).get_fdata()
@@ -40,6 +40,7 @@ class MedicalImageDataset(Dataset):
 
         self.transform = transform
         self.return_path = return_path
+        self.return_mask = return_mask
 
         self.numpy = False # TODO: delete or implement
 
@@ -55,6 +56,9 @@ class MedicalImageDataset(Dataset):
             affine = img.affine
             img = img.get_fdata()
 
+        if self.return_mask:
+            mask = torch.where(torch.tensor(img, dtype=torch.float32) > 0.003, 1., 0.)
+
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
         
@@ -62,6 +66,8 @@ class MedicalImageDataset(Dataset):
             img = self.transform(img)
 
         if self.return_path:
+            if self.return_mask:
+                return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine, self.image_paths[idx], mask
             return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine, self.image_paths[idx]
  
         return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine

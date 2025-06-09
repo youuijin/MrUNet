@@ -20,6 +20,11 @@ class Trainer:
         if args.lr_scheduler == 'multistep':
             self.log_name = f'{self.log_name}_sche(multi_{args.lr_milestones})'
 
+        # add dataset 
+        if 'DLBS' in args.data_path:
+            self.dataset = "DLBS"
+        else:
+            self.dataset = "OASIS"
         # add start time
         now = datetime.now().strftime("%m-%d_%H-%M")
         self.log_name = f'{self.log_name}_{now}'
@@ -84,9 +89,10 @@ class Trainer:
 
         # move trained model to complete folder 
         try:
-            shutil.move(f'./results/saved_models/not_finished/{self.log_name}.pt', f'./results/saved_models/completed/{self.log_name}.pt')
+            
+            shutil.move(f'./results/saved_models/{self.dataset}/not_finished/{self.log_name}.pt', f'./results/saved_models/{self.dataset}/completed/{self.log_name}.pt')
         except Exception as e:
-            print(f"Failed to move ./results/saved_models/not_finished/{self.log_name}.pt: {e}")
+            print(f"Failed to move ./results/saved_models/{self.dataset}/not_finished/{self.log_name}.pt: {e}")
 
         wandb.finish()
 
