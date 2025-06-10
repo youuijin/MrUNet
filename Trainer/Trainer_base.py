@@ -51,9 +51,9 @@ class Trainer:
             self.train_loader, self.val_loader, self.save_loader = set_dataloader(self.train_data_path, args.template_path, args.batch_size)
         
         if args.pair_train:
-            self.save_dir = f'./results/pair/saved_models/{args.dataset}'
+            self.save_dir = f'./results/pair/saved_models/{args.dataset}/{args.model}'
         else:
-            self.save_dir = f'./results/template/saved_models/{args.dataset}'
+            self.save_dir = f'./results/template/saved_models/{args.dataset}/{args.model}'
         os.makedirs(f'{self.save_dir}/completed', exist_ok=True)
         os.makedirs(f'{self.save_dir}/not_finished', exist_ok=True)
         
