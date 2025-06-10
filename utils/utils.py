@@ -212,3 +212,40 @@ def save_middle_slices(img_3d, epoch, idx):
     plt.tight_layout()
 
     return fig
+
+def save_middle_slices_mfm(moving, fixed, moved, epoch, idx):
+    """
+    img_3d: [D, H, W] or [1, D, H, W] or [B, 1, D, H, W] (e.g., torch.Tensor)
+    Returns: matplotlib Figure with x, y, z middle slices side-by-side
+    """
+    def get_slices(img):
+        img = img.squeeze().detach().cpu().numpy()
+        D, H, W = img.shape
+        return [
+            transform_slice(img[D // 2, :, :]),  # axial (x)
+            transform_slice(img[:, H // 2, :]),  # coronal (y)
+            transform_slice(img[:, :, W // 2]),  # sagittal (z)
+        ]
+    
+    slices_moving = get_slices(moving)
+    slices_fixed = get_slices(fixed)
+    slices_moved = get_slices(moved)
+    
+    titles = ['Axial (X)', 'Coronal (Y)', 'Sagittal (Z)']
+    labels = ['Moving', 'Fixed', 'Moved']
+
+    fig, axes = plt.subplots(3, 3, figsize=(12, 10))
+
+    for row in range(3):
+        for col, slices in enumerate([slices_moving, slices_fixed, slices_moved]):
+            axes[row, col].imshow(slices[row], cmap='gray')
+            axes[row, col].axis('off')
+            if row == 0:
+                axes[row, col].set_title(labels[col], fontsize=12)
+        # 왼쪽 row label
+        axes[row, 0].text(-0.2, 0.5, titles[row], va='center', ha='right',
+                          rotation=90, transform=axes[row, 0].transAxes, fontsize=12)
+
+    plt.suptitle(f'Middle slices at Epoch {epoch}, Sample {idx}', fontsize=14)
+    plt.tight_layout()
+    return fig
