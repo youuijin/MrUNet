@@ -35,6 +35,9 @@ class Trainer:
         wandb.init(
             project=args.wandb_name,
             name=self.log_name,
+            dataset=args.dataset,
+            model=args.model,
+            pair=args.pair_train,
             config=config
         )
         
