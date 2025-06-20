@@ -25,8 +25,12 @@ def main(args):
     if args.model_path is not None:
         paths = [args.model_path]
     else:
-        paths = os.listdir(args.model_dir)
-        paths = [f'{args.model_dir}/{p}' for p in paths]
+        if os.path.isdir(args.model_dir):
+            paths = os.listdir(args.model_dir)
+            paths = [f'{args.model_dir}/{p}' for p in paths]
+        else:
+            print("No directory:", args.model_dir)
+            return
 
     for model_path in paths:
         set_seed()
@@ -45,12 +49,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--test_method", choices=['dice', 'folding', 'similar', 'blur'], default='similar')
 
-    parser.add_argument("--image_path", type=str, default="data/OASIS_brain_core_percent")
+    # parser.add_argument("--image_path", type=str, default="data/OASIS_brain_core_percent")
     parser.add_argument("--template_path", type=str, default="data/mni152_resample.nii")
-    parser.add_argument("--label_path", type=str, default="data/OASIS_label_core")
+    # parser.add_argument("--label_path", type=str, default="data/OASIS_label_core")
 
     parser.add_argument("--model_path", type=str, default=None)
-    parser.add_argument("--model_dir", type=str, default='results/saved_models/completed')
+    parser.add_argument("--model_dir", type=str, default='results/saved_models/OASIS/completed')
+    parser.add_argument("--csv_dir", type=str, default="results/template/csvs")
 
     parser.add_argument("--external", action='store_true', default=False)
     

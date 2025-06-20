@@ -1,20 +1,20 @@
 from Tester.Tester_base import Tester
-from utils.dataset import set_dataloader
+from utils.dataset import set_dataloader, set_dataloader_usingcsv
 from utils.utils import apply_deformation_using_disp
 
-import torch
+import torch, os
 import numpy as np
 import nibabel as nib
 from tqdm import tqdm
 
 class DSC_Tester(Tester):
     def __init__(self, model_path, args):
-        self.csv_path = 'results/csvs/dice_results.csv'
+        self.set_dataset(args)
+        self.csv_path = f'{args.csv_dir}/{self.train_dataset}/dice_results.csv'
         if args.external:
-            self.csv_path = 'results/csvs/dice_results_external.csv'
+            self.csv_path = f'{args.csv_dir}/{self.train_dataset}/dice_results_external.csv'
         super().__init__(model_path, args)
-        _, _, self.save_loader = set_dataloader(args.image_path, args.template_path, batch_size=1, return_path=True)
-        self.label_path = args.label_path
+        _, _, self.save_loader = set_dataloader_usingcsv(self.test_dataset, 'data/data_list', args.template_path, batch_size=1, return_path=True)
         self.lut = self.load_freesurfer_lut()
 
     # LUT 불러오기 함수
@@ -43,15 +43,19 @@ class DSC_Tester(Tester):
         intersection = (mask1 & mask2).sum().float()
         size1 = mask1.sum().float()
         size2 = mask2.sum().float()
-        return 1.0 if (size1 + size2 == 0) else 2.0 * intersection / (size1 + size2)
+        return torch.tensor(1.0) if (size1 + size2 == 0) else 2.0 * intersection / (size1 + size2)
 
     def test(self):
         temp_seg = nib.load('data/mni152_label.nii').get_fdata()
         temp_seg = torch.tensor(temp_seg).unsqueeze(0).unsqueeze(0).cuda()
 
         dices = [0.0 for _ in range(35)]
+        cnt = 0
         for i, (img, template, _, _, affine, path) in enumerate(tqdm(self.save_loader, position=0, leave=True, ascii=True)):
             path = path[0]
+            if not os.path.exists(f"{self.label_path}/{path.split('/')[-1]}"):
+                continue
+            cnt += 1
             seg = nib.load(f"{self.label_path}/{path.split('/')[-1]}").get_fdata().astype(np.float32)
             seg = torch.tensor(seg).unsqueeze(0).unsqueeze(0).cuda()
 
@@ -76,10 +80,10 @@ class DSC_Tester(Tester):
             del img, template, stacked_input, deformed_seg
             torch.cuda.empty_cache()  # (선택) 메모리 여유를 위해
 
-        avg_dices = [d/len(self.save_loader) for d in dices]
+        avg_dices = [d/cnt for d in dices]
 
         avg_dices = np.array(avg_dices)
         avg_dices = np.delete(avg_dices, [17, 33])
 
-        results = [self.log_name, avg_dices.mean(), avg_dices.std()] + [a for a in avg_dices]
+        results = [self.model_type, self.log_name, avg_dices.mean(), avg_dices.std()] + [a for a in avg_dices]
         self.save_results(self.csv_path, results)

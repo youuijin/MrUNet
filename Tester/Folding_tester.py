@@ -7,11 +7,11 @@ from tqdm import tqdm
 
 class Folding_Tester(Tester):
     def __init__(self, model_path, args):
-        self.csv_path = 'results/csvs/folding_results.csv'
+        self.set_dataset(args)
+        self.csv_path = f'{args.csv_dir}/{self.train_dataset}/folding_results.csv'
         if args.external:
-            self.csv_path = 'results/csvs/folding_results_external.csv'
+            self.csv_path = f'{args.csv_dir}/{self.train_dataset}/folding_results_external.csv'
         super().__init__(model_path, args)
-        
         
     def test(self):
         fr = []
@@ -33,7 +33,7 @@ class Folding_Tester(Tester):
 
         fr = np.array(fr)
 
-        results = [self.log_name, fr.mean(), fr.std()]
+        results = [self.model_type, self.log_name, fr.mean(), fr.std()]
         self.save_results(self.csv_path, results)
 
     def add_identity_to_deformation(self, deformation_field):

@@ -12,8 +12,8 @@ def set_datapath(dataset):
     elif dataset == 'LUMIR':
         return './data/LUMIR_train', './data/LUMIR_val'
 
-def set_dataloader(image_paths, template_path, batch_size, numpy=True, return_path=False, return_mask=False):
-    dataset = MedicalImageDataset(image_paths, template_path, return_path=return_path, return_mask=return_mask)
+def set_dataloader(image_paths, template_path, batch_size, numpy=True, return_path=False, return_mask=False, mask_path=None):
+    dataset = MedicalImageDataset(image_paths, template_path, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
     dataset_size = len(dataset)
     train_size = int(dataset_size * 0.8)  # 80%
     val_size = int(dataset_size * 0.1)    # 10%
@@ -33,9 +33,12 @@ def set_dataloader(image_paths, template_path, batch_size, numpy=True, return_pa
 
 # Define dataset class
 class MedicalImageDataset(Dataset):
-    def __init__(self, root_dir, template_path, transform=None, return_path=False, return_mask=False):
-        self.image_paths = []
+    def __init__(self, root_dir, template_path, mask_path=None, transform=None, return_path=False, return_mask=False):
+        if return_mask and mask_path is None:
+            return ValueError('If you want to use brain mask, Enter mask path.')
+        
         self.image_paths = [f'{root_dir}/{f}' for f in os.listdir(root_dir)]
+        self.mask_path = mask_path
         template = nib.load(template_path).get_fdata()
         # Template normalize - percentile
         t_data = template.flatten()
@@ -65,7 +68,7 @@ class MedicalImageDataset(Dataset):
             img = img.get_fdata()
 
         if self.return_mask:
-            mask = torch.where(torch.tensor(img, dtype=torch.float32) > 0.003, 1., 0.)
+            mask = nib.load(f'{self.mask_path}/{self.image_paths[idx].split("/")[-1]}').get_fdata()
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
@@ -174,3 +177,67 @@ class FixedPairDataset(Dataset):
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
         return torch.tensor(img, dtype=torch.float32)
+
+import csv
+
+def set_dataloader_usingcsv(dataset, csv_dir, template_path, batch_size, numpy=True, return_path=False, return_mask=False, mask_path=None):
+    train_dataset = MedicalImageDatasetCSV(f'{csv_dir}/{dataset}_train.csv', template_path, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
+    val_dataset = MedicalImageDatasetCSV(f'{csv_dir}/{dataset}_valid.csv', template_path, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
+
+    # DataLoader
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    save_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+
+    return train_loader, val_loader, save_loader
+
+# Define dataset class
+class MedicalImageDatasetCSV(Dataset):
+    def __init__(self, csv_path, template_path, mask_path=None, transform=None, return_path=False, return_mask=False):
+        if return_mask and mask_path is None:
+            return ValueError('If you want to use brain mask, Enter mask path.')
+        
+        with open(csv_path, newline='', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            next(reader)
+            rows = list(reader)
+        self.image_paths = [s[0] for s in rows]
+
+        self.mask_path = mask_path
+        template = nib.load(template_path).get_fdata()
+        # Template normalize - percentile
+        t_data = template.flatten()
+        p1_temp = np.percentile(t_data, 1)
+        p99_temp = np.percentile(t_data, 99)
+        template = np.clip(template, p1_temp, p99_temp)
+        
+        template_min, template_max = template.min(), template.max()
+        self.template = (template - template_min) / (template_max - template_min)
+
+        self.transform = transform
+        self.return_path = return_path
+        self.return_mask = return_mask
+
+    def __len__(self):
+        return len(self.image_paths)
+    
+    def __getitem__(self, idx):
+        img = nib.load(self.image_paths[idx])
+        affine = img.affine
+        img = img.get_fdata()
+
+        if self.return_mask:
+            mask = nib.load(f'{self.mask_path}/{self.image_paths[idx].split("/")[-1]}').get_fdata()
+
+        img_min, img_max = img.min(), img.max()
+        img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
+        
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.return_path:
+            if self.return_mask:
+                return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine, self.image_paths[idx], mask
+            return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine, self.image_paths[idx]
+ 
+        return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine

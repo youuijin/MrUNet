@@ -8,11 +8,12 @@ from tqdm import tqdm
 
 class Blur_Tester(Tester):
     def __init__(self, model_path, args):
-        self.csv_path = 'results/csvs/blur_results.csv'
-        self.save_dir = 'visualization/avg_template'
+        self.set_dataset(args)
+        self.csv_path = f'{args.csv_dir}/{self.train_dataset}/blur_results.csv'
+        self.save_dir = f'visualization/{self.train_dataset}/avg_template'
         if args.external:
-            self.csv_path = 'results/csvs/blur_results_external.csv'
-            self.save_dir = 'visualization/avg_template_external'
+            self.csv_path = f'{args.csv_dir}/{self.train_dataset}/blur_results_external.csv'
+            self.save_dir = f'visualization/{self.train_dataset}/avg_template_external'
         super().__init__(model_path, args)
 
     def test(self):
@@ -50,7 +51,7 @@ class Blur_Tester(Tester):
         tenengrad = measure_blur_tenengrad_3d(mean_img, save_path=f'{self.save_dir}/{self.log_name}_tenegrad.png')
         fft = measure_blur_fft_3d(mean_img, save_path=f'{self.save_dir}/{self.log_name}_fft.png')
 
-        results = [self.log_name, round(overall_variance, 5), round(laplacian,5), round(tenengrad,5), round(fft, 5)]
+        results = [self.model_type, self.log_name, round(overall_variance, 5), round(laplacian,5), round(tenengrad,5), round(fft, 5)]
         self.save_results(self.csv_path, results)
 
 def denormalize_image(normalized_img, img_min, img_max):

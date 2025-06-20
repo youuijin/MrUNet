@@ -1,13 +1,8 @@
-import torch
+import torch, random
 import torch.nn.functional as F
-import numpy as np
-import random
 import numpy as np
 import nibabel as nib
 import matplotlib.pyplot as plt
-
-#TODO: delete
-import time
 
 def set_seed(seed=0):
     """
