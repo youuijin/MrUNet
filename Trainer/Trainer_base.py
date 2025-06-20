@@ -32,12 +32,13 @@ class Trainer:
         now = datetime.now().strftime("%m-%d_%H-%M")
         self.log_name = f'{self.log_name}_{now}'
 
+        config['dataset']=args.dataset
+        config['model']=args.model
+        config['pair']=args.pair_train
+
         wandb.init(
             project=args.wandb_name,
             name=self.log_name,
-            dataset=args.dataset,
-            model=args.model,
-            pair=args.pair_train,
             config=config
         )
         
@@ -87,21 +88,24 @@ class Trainer:
                     if best_loss > cur_loss:
                         cnt = 0
                         best_loss = cur_loss
-                        torch.save(self.model.state_dict(), f'{self.save_dir}/not_finished/{self.log_name}.pt')
+                        torch.save(self.model.state_dict(), f'{self.save_dir}/not_finished/{self.log_name}_best.pt')
                     else: 
                         cnt+=1
 
-                    if cnt >= 3:
-                        # early stop
-                        break
+                    #TODO: Delete
+
+                    # if cnt >= 3:
+                    #     # early stop
+                    #     break
+                torch.save(self.model.state_dict(), f'{self.save_dir}/not_finished/{self.log_name}_last.pt')
             if epoch % self.save_interval == 0:
                 with torch.no_grad():
                     self.save_imgs(epoch, self.save_num)
 
         # move trained model to complete folder 
         try:
-            
-            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}.pt', f'{self.save_dir}/completed/{self.log_name}.pt')
+            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_best.pt', f'{self.save_dir}/completed/{self.log_name}_best.pt')
+            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_last.pt', f'{self.save_dir}/completed/{self.log_name}_last.pt')
         except Exception as e:
             print(f"Failed to move {self.save_dir}/not_finished/{self.log_name}.pt: {e}")
 

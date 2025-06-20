@@ -18,7 +18,7 @@ class MrRegNet_Trainer(Trainer):
         if args.reg is None:
             self.log_name = f'{args.method}_{args.loss}(tv_0.0)'
         else:
-            self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha})'
+            self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha}_sca{args.alp_sca})'
         
         self.method = args.method
 
