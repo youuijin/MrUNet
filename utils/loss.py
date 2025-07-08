@@ -44,14 +44,48 @@ class Train_Loss:
     
 class Uncert_Loss:
     def __init__(self, reg, image_sigma, prior_lambda):
-        if reg == 'tv':
-            self.reg_fn = tv_loss_l2
-        elif reg == 'atv':
-            self.reg_fn = adaptive_tv_loss_l2
+        # TODO: Select smoothness loss
+        # if reg == 'tv':
+        #     self.reg_fn = tv_loss_l2
+        # elif reg == 'atv':
+        #     self.reg_fn = adaptive_tv_loss_l2
+        self.reg_fn = self.smoothness_laplacian
+        # TODO: Select smoothness loss
 
         self.image_sigma = image_sigma
         self.prior_lambda = prior_lambda
         self.degree_matrices = dict()
+
+    def smoothness_laplacian(self, mu):
+        """
+        Compute μ^T Λ μ = 0.5 * λ * sum_i sum_j∈N(i) (μ[i] - μ[j])^2
+        mu: [B, 3, D, H, W]
+        """
+        loss = torch.tensor(0.0, device=mu.device)
+
+        for dim, shift in enumerate([(1,0,0), (-1,0,0), (0,1,0), (0,-1,0), (0,0,1), (0,0,-1)]):
+            # shift mu for neighbor
+            shifted_mu = torch.roll(mu, shifts=shift, dims=(2,3,4))
+            
+            # Mask to remove wrap-around effect
+            mask = torch.ones_like(mu)
+            if shift[0] == 1:
+                mask[:, :, 0, :, :] = 0
+            elif shift[0] == -1:
+                mask[:, :, -1, :, :] = 0
+            if shift[1] == 1:
+                mask[:, :, :, 0, :] = 0
+            elif shift[1] == -1:
+                mask[:, :, :, -1, :] = 0
+            if shift[2] == 1:
+                mask[:, :, :, :, 0] = 0
+            elif shift[2] == -1:
+                mask[:, :, :, :, -1] = 0
+
+            diff = (mu - shifted_mu) ** 2 * mask
+            loss += diff.sum()
+
+        return self.prior_lambda * 0.5 * loss / mu.numel()  # mean over batch
 
     def _adj_filt_3d(self):
         """
@@ -107,6 +141,51 @@ class Uncert_Loss:
         kl_loss = self.kl_loss(mean, std)
 
         return recon_loss + kl_loss, recon_loss.item(), kl_loss.item()
+    
+class Aleatoric_Uncert_Loss:
+    def __init__(self, reg, prior_lambda):
+        if reg == 'tv':
+            self.reg_fn = tv_loss_l2
+        elif reg == 'atv':
+            self.reg_fn = adaptive_tv_loss_l2
+
+        self.prior_lambda = prior_lambda
+        self.degree_matrices = dict()
+
+
+    def kl_loss(self, mean, std):
+        """
+        mean, std: [B, 3, D, H, W]
+        kl_loss = log(σ^2) + λ * tv
+        """
+        # self.degree_matrix = self._compute_degree_matrix(mean.device, mean.shape[2:])
+
+        # sigma_term = self.prior_lambda * self.degree_matrix * (std**2) - torch.log(std**2)
+        # sigma_term = torch.mean(sigma_term)
+        sigma_term = torch.mean(torch.log(std**2))
+        sigma_var = torch.var(torch.log(std**2)) # for logging
+
+        # prec_term = self.prior_lambda * self._precision_loss(mu)
+        smooth_term = self.reg_fn(mean, std)
+
+        return sigma_term, smooth_term, sigma_var
+
+    def recon_loss(self, y_true, y_pred, std):
+        """
+        MSE reconstruction loss.
+        """
+        return torch.mean(1. / (std ** 2) * (y_true - y_pred) ** 2)
+
+    def __call__(self, warped, fixed, mean, std):
+        """
+        fixed: ground truth image [B, 1, D, H, W]
+        warped: warped image [B, 1, D, H, W]
+        mean, std: output of model [B, 3, D, H, W]
+        """
+        recon_loss = self.recon_loss(fixed, warped, std)
+        sigma_loss, smooth_loss, sigma_var = self.kl_loss(mean, std)
+
+        return recon_loss + sigma_loss + self.prior_lambda * smooth_loss, recon_loss.item(), sigma_loss.item(), sigma_var.item()
 
 
 if __name__ == "__main__":

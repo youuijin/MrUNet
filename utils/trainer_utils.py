@@ -3,6 +3,7 @@ from Trainer.VoxelMorph_trainer import VoxelMorph_Trainer
 from Trainer.VoxelMorph_Uncert_trainer import VoxelMorph_Uncert_Trainer
 from Trainer.MrRegNet_trainer import MrRegNet_Trainer
 from Trainer.MrRegNet_Uncert_trainer import MrRegNet_Uncert_Trainer
+from Trainer.VoxelMorph_Aleo_Uncert_trainer import VoxelMorph_Aleatoric_Uncert_Trainer
 # from Trainer.SyN_trainer import SyN_Trainer
 
 def set_trainer(args):
@@ -10,6 +11,8 @@ def set_trainer(args):
         trainer = VoxelMorph_Trainer(args)
     elif args.method == "VM-Un" or args.method == 'VM-Un-diff':
         trainer = VoxelMorph_Uncert_Trainer(args)
+    elif args.method == "VM-Al-Un":
+        trainer = VoxelMorph_Aleatoric_Uncert_Trainer(args)
     elif args.method == "Mr" or args.method =='Mr-diff':
         trainer = MrRegNet_Trainer(args)
     elif args.method == "Mr-Un" or args.method =='Mr-Un-diff':
