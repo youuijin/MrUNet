@@ -53,9 +53,9 @@ class VoxelMorph_Aleatoric_Uncert_Trainer(Trainer):
         else:
             sampled_disp = mean
 
-        if self.method == 'VM-Un':
+        if 'diff' not in self.method:
             deformed_img = apply_deformation_using_disp(img, sampled_disp)
-        elif self.method == 'VM-Un-diff':
+        elif 'diff' in self.method:
             # velocity field to deformation field
             accumulate_disp = self.integrate(sampled_disp)
             deformed_img = apply_deformation_using_disp(img, accumulate_disp)
@@ -99,8 +99,6 @@ class VoxelMorph_Aleatoric_Uncert_Trainer(Trainer):
         }
 
     def save_imgs(self, epoch, num):
-        print('yeah')
-        exit()
         self.model.eval()
         for idx, (img, template, _, _, _) in enumerate(self.save_loader):
             if idx >= num:
