@@ -140,7 +140,10 @@ class Uncert_Loss:
         recon_loss = self.recon_loss(fixed, warped)
         kl_loss = self.kl_loss(mean, std)
 
-        return recon_loss + kl_loss, recon_loss.item(), kl_loss.item()
+        sigma_term = torch.mean(torch.log(std**2))
+        sigma_var = torch.var(torch.log(std**2)) # for logging
+
+        return recon_loss + kl_loss, recon_loss.item(), kl_loss.item(), sigma_term.item(), sigma_var.item()
     
 class Aleatoric_Uncert_Loss:
     def __init__(self, reg, prior_lambda):
@@ -185,7 +188,7 @@ class Aleatoric_Uncert_Loss:
         recon_loss = self.recon_loss(fixed, warped, std)
         sigma_loss, smooth_loss, sigma_var = self.kl_loss(mean, std)
 
-        return recon_loss + sigma_loss + self.prior_lambda * smooth_loss, recon_loss.item(), sigma_loss.item(), sigma_var.item()
+        return recon_loss + sigma_loss + self.prior_lambda * smooth_loss, recon_loss.item(), sigma_loss.item(), smooth_loss.item(), sigma_var.item()
 
 
 if __name__ == "__main__":

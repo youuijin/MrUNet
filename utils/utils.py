@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 import nibabel as nib
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 
 def set_seed(seed=0):
     """
@@ -91,9 +92,6 @@ def apply_deformation(img, deformation_field, mode='bilinear'):
     # deformed_grid[:, 0] = 2 * (deformation_field[:, 0] / (W - 1) - 0.5)
     # deformed_grid[:, 1] = 2 * (deformation_field[:, 1] / (H - 1) - 0.5)
     # deformed_grid[:, 2] = 2 * (deformation_field[:, 2] / (D - 1) - 0.5)
-
-    print(deformation_field)
-    exit()
 
     # Reshape grid to match F.grid_sample requirements (B, D, H, W, 3)
     deformed_grid = deformed_grid.permute(0, 2, 3, 4, 1)
@@ -244,3 +242,7 @@ def save_middle_slices_mfm(moving, fixed, moved, epoch, idx):
     plt.suptitle(f'Middle slices at Epoch {epoch}, Sample {idx}', fontsize=14)
     plt.tight_layout()
     return fig
+
+def print_with_timestamp(string=""):
+    timestamp = (datetime.now() + timedelta(hours=9)).strftime("[%Y-%m-%d %H:%M:%S]")
+    print(timestamp, string)

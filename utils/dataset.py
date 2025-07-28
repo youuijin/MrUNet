@@ -4,16 +4,23 @@ from torch.utils.data import random_split
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 
-def set_datapath(dataset):
+def set_datapath(dataset, numpy):
+    # Update: use numpy file
     if dataset == 'DLBS':
-        return './data/DLBS_core_percent', None
+        if numpy:
+            return './data/DLBS_numpy', None
+        else:
+            return './data/DLBS_core_percent', None
     elif dataset == 'OASIS':
-        return './data/OASIS_brain_core_percent', None
+        if numpy:
+            return './data/OASIS_numpy', None
+        else:
+            return './data/OASIS_brain_core_percent', None
     elif dataset == 'LUMIR':
         return './data/LUMIR_train', './data/LUMIR_val'
 
 def set_dataloader(image_paths, template_path, batch_size, numpy=True, return_path=False, return_mask=False, mask_path=None):
-    dataset = MedicalImageDataset(image_paths, template_path, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
+    dataset = MedicalImageDataset(image_paths, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
     dataset_size = len(dataset)
     train_size = int(dataset_size * 0.8)  # 80%
     val_size = int(dataset_size * 0.1)    # 10%
@@ -33,13 +40,18 @@ def set_dataloader(image_paths, template_path, batch_size, numpy=True, return_pa
 
 # Define dataset class
 class MedicalImageDataset(Dataset):
-    def __init__(self, root_dir, template_path, mask_path=None, transform=None, return_path=False, return_mask=False):
+    def __init__(self, root_dir, template_path, numpy=True, mask_path=None, transform=None, return_path=False, return_mask=False):
         if return_mask and mask_path is None:
             return ValueError('If you want to use brain mask, Enter mask path.')
         
         self.image_paths = [f'{root_dir}/{f}' for f in os.listdir(root_dir)]
         self.mask_path = mask_path
-        template = nib.load(template_path).get_fdata()
+        self.numpy = numpy
+        if numpy:
+            template = np.load(template_path)
+        else:
+            template = nib.load(template_path).get_fdata().astype(np.float32)
+        
         # Template normalize - percentile
         t_data = template.flatten()
         p1_temp = np.percentile(t_data, 1)
@@ -53,22 +65,20 @@ class MedicalImageDataset(Dataset):
         self.return_path = return_path
         self.return_mask = return_mask
 
-        self.numpy = False # TODO: delete or implement
-
     def __len__(self):
         return len(self.image_paths)
     
     def __getitem__(self, idx):
         if self.numpy:
-            img = np.load(f"{self.image_paths[idx]}/data.npy")
-            affine = np.load(f"{self.image_paths[idx]}/affine.npy")
+            img = np.load(f"{self.image_paths[idx]}")
+            affine = np.load(f"data/affine.npy")
         else:
             img = nib.load(self.image_paths[idx])
             affine = img.affine
-            img = img.get_fdata()
+            img = img.get_fdata().astype(np.float32)
 
         if self.return_mask:
-            mask = nib.load(f'{self.mask_path}/{self.image_paths[idx].split("/")[-1]}').get_fdata()
+            mask = nib.load(f'{self.mask_path}/{self.image_paths[idx].split("/")[-1]}').get_fdata().astype(np.float32)
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
@@ -78,25 +88,34 @@ class MedicalImageDataset(Dataset):
 
         if self.return_path:
             if self.return_mask:
-                return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine, self.image_paths[idx], mask
-            return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine, self.image_paths[idx]
+                return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx], mask
+            return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx]
  
-        return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine
+        return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine
 
 # Load pair-wise data
 import random
 
-def set_paired_dataloader(train_dir, val_dir=None, batch_size=1):
+def set_paired_dataloader(train_dir, val_dir=None, batch_size=1, numpy=True):
+    def get_image_paths(directory):
+        if numpy:
+            return sorted([
+                os.path.join(directory, f)
+                for f in os.listdir(directory)
+                if f.endswith(".npy")
+            ])
+        else:
+            return sorted([
+                os.path.join(directory, f)
+                for f in os.listdir(directory)
+                if f.endswith(".nii") or f.endswith(".nii.gz")
+            ])
+
     if val_dir is None:
-        all_paths = sorted([
-            os.path.join(train_dir, f)
-            for f in os.listdir(train_dir)
-            if f.endswith(".nii") or f.endswith(".nii.gz")
-        ])
+        all_paths = get_image_paths(train_dir)
         dataset_size = len(all_paths)
-        train_size = int(dataset_size * 0.8)  # 80%
-        val_size = int(dataset_size * 0.1)    # 10%
-        test_size = dataset_size - train_size - val_size  # remain
+        train_size = int(dataset_size * 0.8)
+        val_size = int(dataset_size * 0.1)
 
         train_image_paths = all_paths[:train_size]
         val_image_paths = all_paths[train_size:train_size+val_size]
@@ -104,19 +123,11 @@ def set_paired_dataloader(train_dir, val_dir=None, batch_size=1):
         if len(val_image_paths) % 2:
             val_image_paths = val_image_paths[:-1]
     else:
-        train_image_paths = [
-            os.path.join(train_dir, f)
-            for f in os.listdir(train_dir)
-            if f.endswith(".nii") or f.endswith(".nii.gz")
-        ]
-        val_image_paths = sorted([
-            os.path.join(val_dir, f)
-            for f in os.listdir(val_dir)
-            if f.endswith(".nii") or f.endswith(".nii.gz")
-        ])
+        train_image_paths = get_image_paths(train_dir)
+        val_image_paths = get_image_paths(val_dir)
     
-    train_dataset = RandomInterPatientDataset(train_image_paths)
-    val_dataset = FixedPairDataset(val_image_paths)
+    train_dataset = RandomInterPatientDataset(train_image_paths, numpy=numpy)
+    val_dataset = FixedPairDataset(val_image_paths, numpy=numpy)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -125,13 +136,14 @@ def set_paired_dataloader(train_dir, val_dir=None, batch_size=1):
     return train_loader, val_loader, save_loader
 
 class RandomInterPatientDataset(Dataset):
-    def __init__(self, image_paths, return_path=False):
+    def __init__(self, image_paths, numpy=True, return_path=False):
         """
         image_dir: directory of all training images (e.g., NIfTI)
         num_pairs_per_epoch: how many random pairs to draw per epoch
         """
         self.image_paths = image_paths
         self.num_pairs = len(self.image_paths)
+        self.numpy = numpy
         self.return_path = return_path
 
     def __len__(self):
@@ -146,19 +158,23 @@ class RandomInterPatientDataset(Dataset):
         return img1, img2, 0, 0, affine
 
     def load_image(self, path):
-        nifti = nib.load(path)
-        img = nifti.get_fdata()
-        affine = nifti.affine
-        # img = torch.from_numpy(img).float().unsqueeze(0)  # shape: [1, D, H, W]
+        if self.numpy:
+            img = np.load(path)
+            affine = np.load('data/affine.npy')
+        else:
+            nifti = nib.load(path)
+            img = nifti.get_fdata().astype(np.float32)
+            affine = nifti.affine
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
-        return torch.tensor(img, dtype=torch.float32), affine
+        return torch.from_numpy(img), affine
 
 class FixedPairDataset(Dataset):
-    def __init__(self, image_paths, return_path=False):
+    def __init__(self, image_paths, numpy=True, return_path=False):
         self.image_paths = image_paths
         self.return_path = return_path
+        self.numpy = numpy
 
         assert len(self.image_paths) % 2 == 0, "Number of images must be even to form pairs"
 
@@ -179,19 +195,23 @@ class FixedPairDataset(Dataset):
         return moving, fixed, 0, 0, affine
 
     def load_image(self, path):
-        nifti = nib.load(path)
-        img = nifti.get_fdata()
-        affine = nifti.affine
+        if self.numpy:
+            img = np.load(path)
+            affine = np.load('data/affine.npy')
+        else:
+            nifti = nib.load(path)
+            img = nifti.get_fdata().astype(np.float32)
+            affine = nifti.affine
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
-        return torch.tensor(img, dtype=torch.float32), affine
+        return torch.from_numpy(img), affine
 
 import csv
 
 def set_dataloader_usingcsv(dataset, csv_dir, template_path, batch_size, numpy=True, return_path=False, return_mask=False, mask_path=None):
-    train_dataset = MedicalImageDatasetCSV(f'{csv_dir}/{dataset}_train.csv', template_path, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
-    val_dataset = MedicalImageDatasetCSV(f'{csv_dir}/{dataset}_valid.csv', template_path, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
+    train_dataset = MedicalImageDatasetCSV(f'{csv_dir}/{dataset}_train.csv', template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
+    val_dataset = MedicalImageDatasetCSV(f'{csv_dir}/{dataset}_valid.csv', template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
 
     # DataLoader
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -202,7 +222,7 @@ def set_dataloader_usingcsv(dataset, csv_dir, template_path, batch_size, numpy=T
 
 # Define dataset class
 class MedicalImageDatasetCSV(Dataset):
-    def __init__(self, csv_path, template_path, mask_path=None, transform=None, return_path=False, return_mask=False):
+    def __init__(self, csv_path, template_path, numpy=True, mask_path=None, transform=None, return_path=False, return_mask=False):
         if return_mask and mask_path is None:
             return ValueError('If you want to use brain mask, Enter mask path.')
         
@@ -211,9 +231,13 @@ class MedicalImageDatasetCSV(Dataset):
             next(reader)
             rows = list(reader)
         self.image_paths = [s[0] for s in rows]
-
         self.mask_path = mask_path
-        template = nib.load(template_path).get_fdata()
+        self.numpy = numpy
+        if numpy:
+            template = np.load(template_path)
+        else:
+            template = nib.load(template_path).get_fdata().astype(np.float32)
+        
         # Template normalize - percentile
         t_data = template.flatten()
         p1_temp = np.percentile(t_data, 1)
@@ -231,12 +255,16 @@ class MedicalImageDatasetCSV(Dataset):
         return len(self.image_paths)
     
     def __getitem__(self, idx):
-        img = nib.load(self.image_paths[idx])
-        affine = img.affine
-        img = img.get_fdata()
+        if self.numpy:
+            img = np.load(self.image_paths[idx])
+            affine = np.load('data/affine.npy')
+        else:
+            img = nib.load(self.image_paths[idx])
+            affine = img.affine
+            img = img.get_fdata().astype(np.float32)
 
         if self.return_mask:
-            mask = nib.load(f'{self.mask_path}/{self.image_paths[idx].split("/")[-1]}').get_fdata()
+            mask = nib.load(f'{self.mask_path}/{self.image_paths[idx].split("/")[-1]}').get_fdata().astype(np.float32)
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
@@ -246,24 +274,24 @@ class MedicalImageDatasetCSV(Dataset):
 
         if self.return_path:
             if self.return_mask:
-                return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine, self.image_paths[idx], mask
-            return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine, self.image_paths[idx]
+                return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx], mask
+            return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx]
  
-        return torch.tensor(img, dtype=torch.float32), torch.tensor(self.template, dtype=torch.float32), img_min, img_max, affine
+        return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine
 
-def set_paired_dataloader_usingcsv(dataset, csv_dir, batch_size=1, return_path=False, return_mask=False, mask_path=None):
+def set_paired_dataloader_usingcsv(dataset, csv_dir, batch_size=1, numpy=True, return_path=False, return_mask=False, mask_path=None):
     with open(f'{csv_dir}/{dataset}_train_pair.csv', newline='', encoding='utf-8') as f:
         reader = csv.reader(f)
         next(reader)
         rows = list(reader)
     train_image_paths = [s[0] for s in rows]
-    train_dataset = RandomInterPatientDataset(train_image_paths, return_path=return_path)
+    train_dataset = RandomInterPatientDataset(train_image_paths, numpy=numpy, return_path=return_path)
     
     with open(f'{csv_dir}/{dataset}_valid_pair.csv', newline='', encoding='utf-8') as f:
         reader = csv.reader(f)
         next(reader)
         valid_image_paths = list(reader)
-    val_dataset = FixedPairCSVDataset(valid_image_paths, return_path=return_path)
+    val_dataset = FixedPairCSVDataset(valid_image_paths, numpy=numpy, return_path=return_path)
 
     # DataLoader
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -273,8 +301,9 @@ def set_paired_dataloader_usingcsv(dataset, csv_dir, batch_size=1, return_path=F
     return train_loader, val_loader, save_loader
 
 class FixedPairCSVDataset(Dataset):
-    def __init__(self, image_paths, return_path=False):
+    def __init__(self, image_paths, numpy=True, return_path=False):
         self.pairs = image_paths
+        self.numpy = numpy
         self.return_path = return_path
 
     def __len__(self):
@@ -289,9 +318,13 @@ class FixedPairCSVDataset(Dataset):
         return moving, fixed, 0, 0, affine
 
     def load_image(self, path):
-        nifti = nib.load(path)
-        img = nifti.get_fdata()
-        affine = nifti.affine
+        if self.numpy:
+            img = np.load(path)
+            affine = np.load('data/affine.npy')
+        else:
+            nifti = nib.load(path)
+            img = nifti.get_fdata().astype(np.float32)
+            affine = nifti.affine
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#

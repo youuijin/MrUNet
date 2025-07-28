@@ -1,10 +1,8 @@
-# from Trainer.Basic_trainer import Basic_Trainer
 from Trainer.VoxelMorph_trainer import VoxelMorph_Trainer
 from Trainer.VoxelMorph_Uncert_trainer import VoxelMorph_Uncert_Trainer
 from Trainer.MrRegNet_trainer import MrRegNet_Trainer
 from Trainer.MrRegNet_Uncert_trainer import MrRegNet_Uncert_Trainer
 from Trainer.VoxelMorph_Aleo_Uncert_trainer import VoxelMorph_Aleatoric_Uncert_Trainer
-# from Trainer.SyN_trainer import SyN_Trainer
 
 def set_trainer(args):
     if args.method == "VM" or args.method == "VM-diff":
@@ -18,8 +16,6 @@ def set_trainer(args):
     elif args.method == "Mr-Un" or args.method =='Mr-Un-diff':
         trainer = MrRegNet_Uncert_Trainer(args) 
     #     #TODO: Scaling accross multi-resolution level
-    # elif args.method == "SyN":
-    #     trainer = SyN_Trainer()
     else:
         raise ValueError("Error! Undefined Method:", args.method)
     
