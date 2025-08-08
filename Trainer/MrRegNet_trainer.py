@@ -3,7 +3,6 @@ from utils.loss import Train_Loss
 
 from utils.utils import apply_deformation_using_disp
 from networks.VecInt import VecInt
-import wandb
 from datetime import datetime
 
 import torch.nn as nn
@@ -88,9 +87,7 @@ class MrRegNet_Trainer(Trainer):
             tag = 'Val'
         
         for key, value in self.log_dict.items():
-            wandb.log({f"{tag}/{key}": value / num}, step=epoch)
-        
-        wandb.log({"Epoch": epoch}, step=epoch)
+            self.writer.add_scalar(f"{tag}/{key}", value/num, epoch)
 
     def reset_logs(self):
         # for multi-resolution layer, deterministic version (Mr)

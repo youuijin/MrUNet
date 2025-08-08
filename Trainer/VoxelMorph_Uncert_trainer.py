@@ -3,10 +3,10 @@ from utils.loss import Uncert_Loss
 
 import torch
 
-from utils.utils import apply_deformation_using_disp
+import matplotlib.pyplot as plt
+from utils.utils import save_middle_slices, save_middle_slices_mfm, apply_deformation_using_disp
 from networks.VecInt import VecInt
 
-import wandb
 from datetime import datetime
 
 class VoxelMorph_Uncert_Trainer(Trainer):
@@ -40,7 +40,7 @@ class VoxelMorph_Uncert_Trainer(Trainer):
 
         super().__init__(args, config)
 
-    def forward(self, img, template, stacked_input, val=False):
+    def forward(self, img, template, stacked_input, val=False, return_uncert=False):
         mean_list, std_list, _, _ = self.model(stacked_input)
         mean = mean_list[-1] # use only last one
         std = std_list[-1]
@@ -59,11 +59,16 @@ class VoxelMorph_Uncert_Trainer(Trainer):
             accumulate_disp = self.integrate(sampled_disp)
             deformed_img = apply_deformation_using_disp(img, accumulate_disp)
         
-        loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, template, mean, std)
+        loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, template, mean, std)
 
         self.log_dict['Loss_tot'] += loss.item()
+        self.log_dict['Std_mean'] += sigma_loss
+        self.log_dict['Std_var'] += sigma_var
         self.log_dict['Loss_sim'] += sim_loss
         self.log_dict['Loss_reg'] += smoo_loss
+
+        if return_uncert:
+            return loss, deformed_img, std
         
         return loss, deformed_img
 
@@ -79,14 +84,49 @@ class VoxelMorph_Uncert_Trainer(Trainer):
             tag = 'Val'
         
         for key, value in self.log_dict.items():
-            wandb.log({f"{tag}/{key}": value / num}, step=epoch)
-        
-        wandb.log({"Epoch": epoch}, step=epoch)
-
+            self.writer.add_scalar(f"{tag}/{key}", value/num, epoch)
+            
     def reset_logs(self):
         # for single layer, deterministic version (VM)
         self.log_dict = {
             'Loss_tot':0.0,
             'Loss_sim':0.0,
-            'Loss_reg':0.0
+            'Loss_reg':0.0,
+            'Std_mean':0.0,
+            'Std_var':0.0
         }
+
+    def save_imgs(self, epoch, num):
+        self.model.eval()
+        for idx, (img, template, _, _, _) in enumerate(self.save_loader):
+            if idx >= num:
+                break
+            img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
+            stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
+
+            # forward & calculate loss in child trainer
+            _, deformed_img, std = self.forward(img, template, stacked_input, val=True, return_uncert=True)
+
+            std_magnitude = torch.norm(std, dim=1)
+            fig = save_middle_slices(std_magnitude, epoch, idx)
+            # wandb.log({f"std_img{idx}": wandb.Image(fig)}, step=epoch)
+            self.writer.add_figure(f'std_img{idx}', fig, epoch)
+            plt.close(fig)
+
+            if self.pair_train:
+                fig = save_middle_slices_mfm(img, template, deformed_img, epoch, idx)
+                # wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
+                self.writer.add_figure(f'deformed_slices_img{idx}', fig, epoch)
+                plt.close(fig)
+            else:
+                fig = save_middle_slices(deformed_img, epoch, idx)
+                # wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
+                self.writer.add_figure(f'deformed_slices_img{idx}', fig, epoch)
+                plt.close(fig)
+
+                if epoch == 0 and idx == 0:
+                    fig = save_middle_slices(template, epoch, idx)
+                    # wandb.log({f"Template": wandb.Image(fig)}, step=epoch)
+                    self.writer.add_figure(f'Template', fig, epoch)
+                    plt.close(fig)
+

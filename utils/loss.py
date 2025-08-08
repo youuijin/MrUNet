@@ -1,4 +1,5 @@
 from utils.loss_utils import *
+import torch.nn.functional as F
 
 class Train_Loss:
     def __init__(self, loss, reg, alpha, alpha_scale=1.0, scale_fn='exp'):
@@ -173,11 +174,11 @@ class Aleatoric_Uncert_Loss:
 
         return sigma_term, smooth_term, sigma_var
 
-    def recon_loss(self, y_true, y_pred, std):
+    def recon_loss(self, y_true, y_pred, std, eps=1e-6):
         """
         MSE reconstruction loss.
         """
-        return torch.mean(1. / (std ** 2) * (y_true - y_pred) ** 2)
+        return torch.mean(1. / (std ** 2 + 1e-6) * ((y_true - y_pred) ** 2))
 
     def __call__(self, warped, fixed, mean, std):
         """
@@ -185,11 +186,47 @@ class Aleatoric_Uncert_Loss:
         warped: warped image [B, 1, D, H, W]
         mean, std: output of model [B, 3, D, H, W]
         """
+        std = torch.clamp(std, min=1e-3) # add clamp to 안정화
         recon_loss = self.recon_loss(fixed, warped, std)
         sigma_loss, smooth_loss, sigma_var = self.kl_loss(mean, std)
 
         return recon_loss + sigma_loss + self.prior_lambda * smooth_loss, recon_loss.item(), sigma_loss.item(), smooth_loss.item(), sigma_var.item()
 
+class MultiSampleLoss:
+    def __init__(self, loss, reg, alpha):
+        if loss == 'MSE':
+            self.loss_fn_sim = MSE_loss
+        elif loss == 'NCC':
+            self.loss_fn_sim = NCC_loss
+
+        self.reg = reg
+        self.alpha = float(alpha)
+        self.gamma = 1e-3
+
+    def __call__(self, warped_imgs, fixed, mean, std):
+        """
+        fixed: ground truth image [B, 1, D, H, W]
+        warped_imgs: [warped image [B, 1, D, H, W]] x N
+        mean, std: output of model [B, 3, D, H, W]
+        """
+        if len(warped_imgs) == 1:
+            warped_mean = warped_imgs[0]
+            warped_var = torch.zeros_like(warped_mean)
+        else:
+            stacked = torch.stack(warped_imgs, dim=0)
+            warped_mean = torch.mean(stacked, dim=0)
+            warped_var = torch.var(stacked, dim=0, unbiased=False)
+        
+        sim_loss = self.loss_fn_sim(fixed, warped_mean)
+        var_loss = -1 * torch.mean(warped_var)
+
+        # KL Loss (prior penalty)
+        kl_loss = torch.mean(0.5 * (mean**2 + std**2 - torch.log(std**2 + 1e-6) - 1))
+
+        std_mean = torch.mean(torch.log(std+1e-6))
+        std_var = torch.var(torch.log(std+1e-6)) # for logging
+
+        return sim_loss + self.alpha * var_loss + self.gamma * kl_loss, sim_loss.item(), var_loss.item(), kl_loss.item(), std_mean.item(), std_var.item()
 
 if __name__ == "__main__":
     UL = Uncert_Loss('tv', 0.02, 10.0)

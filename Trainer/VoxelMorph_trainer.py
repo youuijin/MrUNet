@@ -3,8 +3,6 @@ from utils.loss import Train_Loss
 
 from utils.utils import apply_deformation_using_disp
 from networks.VecInt import VecInt
-import wandb
-
 
 class VoxelMorph_Trainer(Trainer):
     def __init__(self, args):
@@ -68,9 +66,10 @@ class VoxelMorph_Trainer(Trainer):
             tag = 'Val'
         
         for key, value in self.log_dict.items():
-            wandb.log({f"{tag}/{key}": value / num}, step=epoch)
+            self.writer.add_scalar(f"{tag}/{key}", value/num, epoch)
+            # wandb.log({f"{tag}/{key}": value / num}, step=epoch)
         
-        wandb.log({"Epoch": epoch}, step=epoch)
+        # wandb.log({"Epoch": epoch}, step=epoch)
 
     def reset_logs(self):
         # for single layer, deterministic version (VM)

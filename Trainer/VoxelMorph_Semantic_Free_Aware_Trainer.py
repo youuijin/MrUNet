@@ -1,19 +1,21 @@
-import torch, wandb
-
 from Trainer.Trainer_base import Trainer
+from utils.loss import MultiSampleLoss
+
+import torch
 
 import matplotlib.pyplot as plt
 from utils.utils import save_middle_slices, save_middle_slices_mfm, apply_deformation_using_disp
-from utils.loss import Aleatoric_Uncert_Loss
-
 from networks.VecInt import VecInt
 
-class VoxelMorph_Aleatoric_Uncert_Trainer(Trainer):
+import wandb
+from datetime import datetime
+
+class VoxelMorph_Semantic_Free_Aware_Trainer(Trainer):
     def __init__(self, args):
-        assert args.reg in ['tv', 'atv']
-        assert args.method in ['VM-Al-Un']
+        assert args.reg in ['none', 'tv', 'atv']
+        assert args.method in ['VM-SFA', 'VM-SFA-diff']
         # setting log name first!
-        self.log_name = f'{args.method}_({args.reg}_{args.prior_lambda})_clamp'
+        self.log_name = f'{args.method}_{args.loss}({args.alpha}_N{args.num_samples}_{args.reg})'
         self.method = args.method
 
         config={
@@ -21,15 +23,17 @@ class VoxelMorph_Aleatoric_Uncert_Trainer(Trainer):
             "epochs": args.epochs,
             "batch_size": args.batch_size,
             "learning_rate": args.lr,
+            "loss": args.loss,
             "reg": args.reg,
-            "prior_lambda": args.prior_lambda,
+            "alpha": args.alpha
         }
 
         self.args = args
         self.out_channels = 6
         self.out_layers = 1
 
-        self.loss_fn = Aleatoric_Uncert_Loss(args.reg, args.prior_lambda)
+        self.loss_fn = MultiSampleLoss(args.loss, args.reg, args.alpha)
+        self.N = args.num_samples
         self.reset_logs()
 
         if 'diff' in args.method:
@@ -43,30 +47,39 @@ class VoxelMorph_Aleatoric_Uncert_Trainer(Trainer):
         std = std_list[-1]
 
         if val==False:
-            # sample in Gaussian distribution
-            eps_r = torch.randn_like(mean)
-            sampled_disp = mean + eps_r * std
+            # sample in Gaussian distribution x N
+            disps = []
+            for i in range(self.N):
+                eps_r = torch.randn_like(mean)
+                sampled_disp = mean + eps_r * std
+                disps.append(sampled_disp)
         else:
-            sampled_disp = mean
-
-        if 'diff' not in self.method:
-            deformed_img = apply_deformation_using_disp(img, sampled_disp)
-        elif 'diff' in self.method:
-            # velocity field to deformation field
-            accumulate_disp = self.integrate(sampled_disp)
-            deformed_img = apply_deformation_using_disp(img, accumulate_disp)
+            disps = [mean]
         
-        loss, sim_loss, sigma_loss, smoo_loss, sigma_var = self.loss_fn(deformed_img, template, mean, std)
-        print(loss, sim_loss, sigma_loss, smoo_loss, sigma_var)
+        deformed_imgs = []
+        for sampled_disp in disps:
+            if self.method == 'VM-SFA':
+                deformed_img = apply_deformation_using_disp(img, sampled_disp)
+            elif self.method == 'VM-SFA-diff':
+                # velocity field to deformation field
+                accumulate_disp = self.integrate(sampled_disp)
+                deformed_img = apply_deformation_using_disp(img, accumulate_disp)
+            deformed_imgs.append(deformed_img)
+        
+        loss, sim_loss, var_loss, kl_loss, std_mean, std_var = self.loss_fn(deformed_imgs, template, mean, std)
+
+        # print(loss.item(), sim_loss, var_loss, kl_loss, std_mean, std_var)
 
         self.log_dict['Loss_tot'] += loss.item()
-        self.log_dict['Std_mean'] += sigma_loss
-        self.log_dict['Std_var'] += sigma_var
         self.log_dict['Loss_sim'] += sim_loss
-        self.log_dict['Loss_reg'] += smoo_loss
-        
+        self.log_dict['Loss_var'] += var_loss
+        self.log_dict['Loss_kl'] += kl_loss
+        self.log_dict['Std_mean'] += std_mean
+        self.log_dict['Std_var'] += std_var
+
         if return_uncert:
             return loss, deformed_img, std
+        
         return loss, deformed_img
 
     def log(self, epoch, phase=None):
@@ -91,40 +104,11 @@ class VoxelMorph_Aleatoric_Uncert_Trainer(Trainer):
         self.log_dict = {
             'Loss_tot':0.0,
             'Loss_sim':0.0,
-            'Loss_reg':0.0,
+            'Loss_var':0.0,
+            'Loss_kl':0.0,
             'Std_mean':0.0,
-            'Std_var':0.0
+            'Std_var':0.0,
         }
-
-    # def save_imgs(self, epoch, num):
-    #     self.model.eval()
-    #     for idx, (img, template, _, _, _) in enumerate(self.save_loader):
-    #         if idx >= num:
-    #             break
-    #         img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
-    #         stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
-
-    #         # forward & calculate loss in child trainer
-    #         _, deformed_img, std = self.forward(img, template, stacked_input, val=True, return_uncert=True)
-
-    #         std_magnitude = torch.norm(std, dim=1)
-    #         fig = save_middle_slices(std_magnitude, epoch, idx)
-    #         wandb.log({f"std_img{idx}": wandb.Image(fig)}, step=epoch)
-    #         plt.close(fig)
-
-    #         if self.pair_train:
-    #             fig = save_middle_slices_mfm(img, template, deformed_img, epoch, idx)
-    #             wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
-    #             plt.close(fig)
-    #         else:
-    #             fig = save_middle_slices(deformed_img, epoch, idx)
-    #             wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
-    #             plt.close(fig)
-
-    #             if epoch == 0 and idx == 0:
-    #                 fig = save_middle_slices(template, epoch, idx)
-    #                 wandb.log({f"Template": wandb.Image(fig)}, step=epoch)
-    #                 plt.close(fig)
 
     def save_imgs(self, epoch, num):
         self.model.eval()

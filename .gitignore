@@ -3,7 +3,9 @@ results
 saved_models
 visualization
 wandb
+__pycache__
 */__pycache__/*
 *.sh
 logs/
 Challenge
+logs_txt/

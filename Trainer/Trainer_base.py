@@ -1,15 +1,14 @@
-import wandb, os, torch, shutil
+import wandb, os, torch, shutil, warnings
 import torch.optim as optim
 import matplotlib.pyplot as plt
-from utils.dataset import set_dataloader, set_paired_dataloader, set_datapath
 from networks.network_utils import set_model
-from utils.utils import set_seed, save_middle_slices, save_middle_slices_mfm
-from tqdm import tqdm
+from utils.dataset import set_dataloader, set_paired_dataloader, set_datapath
+from utils.utils import set_seed, save_middle_slices, save_middle_slices_mfm, print_with_timestamp
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
-# logging - wandb
-wandb.login(key="87539aeaa75ad2d8a28ec87d70e5d6ce1277c544")
+from torch.utils.tensorboard import SummaryWriter
 
 class Trainer:
     def __init__(self, args, config=None):
@@ -29,18 +28,19 @@ class Trainer:
             self.log_name = f'{self.log_name}_sche(multi_{args.lr_milestones})'
 
         # add start time
-        now = datetime.now().strftime("%m-%d_%H-%M")
+        now = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%m-%d_%H-%M")
         self.log_name = f'{self.log_name}_{now}'
 
         config['dataset']=args.dataset
         config['model']=args.model
         config['pair']=args.pair_train
 
-        wandb.init(
-            project=args.wandb_name,
-            name=self.log_name,
-            config=config
-        )
+        # wandb.init(
+        #     project=args.wandb_name,
+        #     name=self.log_name,
+        #     config=config
+        # )
+        self.writer = SummaryWriter(log_dir=f'{args.log_dir}/{args.dataset}/{args.model}/pair_{args.pair_train}/{self.log_name}')
         
         # Setting Model
         self.model = set_model(args.model, out_channels=self.out_channels, out_layers=self.out_layers)
@@ -48,11 +48,11 @@ class Trainer:
             self.model.load_state_dict(torch.load(args.saved_path, weights_only=True))
         self.model = self.model.cuda()
 
-        self.train_data_path, self.val_data_path = set_datapath(args.dataset)
+        self.train_data_path, self.val_data_path = set_datapath(args.dataset, args.numpy)
         if args.pair_train:
-            self.train_loader, self.val_loader, self.save_loader = set_paired_dataloader(train_dir=self.train_data_path, val_dir=self.val_data_path, batch_size=args.batch_size)
+            self.train_loader, self.val_loader, self.save_loader = set_paired_dataloader(train_dir=self.train_data_path, val_dir=self.val_data_path, batch_size=args.batch_size, numpy=args.numpy)
         else:
-            self.train_loader, self.val_loader, self.save_loader = set_dataloader(self.train_data_path, args.template_path, args.batch_size)
+            self.train_loader, self.val_loader, self.save_loader = set_dataloader(self.train_data_path, args.template_path, args.batch_size, numpy=args.numpy)
         
         if args.pair_train:
             self.save_dir = f'./results/pair/saved_models/{args.dataset}/{args.model}'
@@ -61,25 +61,23 @@ class Trainer:
         os.makedirs(f'{self.save_dir}/completed', exist_ok=True)
         os.makedirs(f'{self.save_dir}/not_finished', exist_ok=True)
         
-        # self.val_detail = args.val_detail
-
         self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)
         # set learning rate scheduler 
-        tot_step_number = args.epochs * len(self.train_loader)
         if args.lr_scheduler == 'none':
             self.lr_scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lambda epoch: 1.0)
         elif args.lr_scheduler == 'multistep':
-            # milestones = [i*tot_step_number for i in args.lr_milestones.split(',')]
             milestones = [int(i)*len(self.train_loader) for i in args.lr_milestones.split(',')]
             self.lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=milestones, gamma=0.1)
 
-        self.lr_scheduler.step(args.start_epoch*len(self.train_loader))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.lr_scheduler.step(args.start_epoch * len(self.train_loader))
 
     def train(self):
         best_loss = 1e+9
         cnt = 0
         # save template img
-        for epoch in tqdm(range(self.start_epoch, self.epochs), position=0, desc='Epoch', leave=True):
+        for epoch in range(self.start_epoch, self.epochs):
             self.train_1_epoch(epoch)
             if epoch % self.val_interval == 0:
                 with torch.no_grad():
@@ -91,8 +89,6 @@ class Trainer:
                         torch.save(self.model.state_dict(), f'{self.save_dir}/not_finished/{self.log_name}_best.pt')
                     else: 
                         cnt+=1
-
-                    #TODO: Delete
 
                     # if cnt >= 3:
                     #     # early stop
@@ -107,19 +103,21 @@ class Trainer:
             shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_best.pt', f'{self.save_dir}/completed/{self.log_name}_best.pt')
             shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_last.pt', f'{self.save_dir}/completed/{self.log_name}_last.pt')
         except Exception as e:
-            print(f"Failed to move {self.save_dir}/not_finished/{self.log_name}.pt: {e}")
+            print_with_timestamp(f"Failed to move {self.save_dir}/not_finished/{self.log_name}.pt: {e}")
 
-        wandb.finish()
+        # wandb.finish()
 
     def train_1_epoch(self, epoch):
         self.reset_logs()
         self.model.train()
-        for (img, template, _, _, _) in tqdm(self.train_loader, desc=f"Train [lr {self.optimizer.param_groups[0]['lr']}]", position=1, leave=False):
+        tot_loss = 0.
+        for (img, template, _, _, _) in self.train_loader:
             img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
 
             # forward & calculate loss in child trainer
             loss, _ = self.forward(img, template, stacked_input)
+            tot_loss += loss.item()
 
             # backward & update model
             self.optimizer.zero_grad()
@@ -127,18 +125,24 @@ class Trainer:
             self.optimizer.step()
             self.lr_scheduler.step()
 
+        print_with_timestamp(f'Epoch {epoch}: train loss {round(tot_loss/len(self.train_loader), 4)}')
+
         # log into wandb
         self.log(epoch, phase='train')
 
     def valid(self, epoch):
         self.reset_logs()
         self.model.eval()
-        for (img, template, _, _, _) in tqdm(self.val_loader, desc=f"Valid", position=1, leave=False):
+        tot_loss = 0.
+        for (img, template, _, _, _) in self.val_loader:
             img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
 
             # forward & calculate loss in child trainer
-            _, _ = self.forward(img, template, stacked_input, val=True)
+            loss, _ = self.forward(img, template, stacked_input, val=True)
+            tot_loss += loss.item()
+
+        print_with_timestamp(f'Epoch {epoch}: valid loss {round(tot_loss/len(self.val_loader), 4)}')
 
         self.log(epoch, phase='valid')
 
@@ -155,14 +159,19 @@ class Trainer:
 
             if self.pair_train:
                 fig = save_middle_slices_mfm(img, template, deformed_img, epoch, idx)
-                wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
+                # wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
+                self.writer.add_figure(f'deformed_slices_img{idx}', fig, epoch)
                 plt.close(fig)
             else:
                 fig = save_middle_slices(deformed_img, epoch, idx)
-                wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
+                # wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
+                self.writer.add_figure(f'deformed_slices_img{idx}', fig, epoch)
                 plt.close(fig)
 
                 if epoch == 0 and idx == 0:
                     fig = save_middle_slices(template, epoch, idx)
-                    wandb.log({f"Template": wandb.Image(fig)}, step=epoch)
+                    # wandb.log({f"Template": wandb.Image(fig)}, step=epoch)
+                    self.writer.add_figure(f'Template', fig, epoch)
                     plt.close(fig)
+        
+        print_with_timestamp(f'Epoch {epoch}: Successfully saved {num} images')

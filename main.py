@@ -1,13 +1,17 @@
 import argparse
 from pyprnt import prnt
 from utils.trainer_utils import set_trainer
+from utils.utils import print_with_timestamp
 
 def main(args):
     trainer = set_trainer(args)
-    print("Start training:", trainer.log_name)
-
+    print_with_timestamp(f"Start training: {trainer.log_name}")
+    
     args_dict = vars(args)
-    prnt(args_dict)
+    # prnt(args_dict)
+    print_with_timestamp(f"Hyperparameters:")
+    for key, value in args_dict.items():
+        print_with_timestamp(f"    {key}: {value}")
 
     trainer.train()
 
@@ -24,8 +28,9 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--method", type=str, default='VM', choices=['VM', 'Mr', 'VM-Un', 'Mr-Un', 'VM-diff', 'Mr-diff', 'VM-Un-diff', 'VM-Al-Un'])
+    parser.add_argument("--method", type=str, default='VM', choices=['VM', 'Mr', 'VM-Un', 'Mr-Un', 'VM-diff', 'Mr-diff', 'VM-Un-diff', 'VM-Al-Un', 'VM-SFA', 'VM-SFA-diff'])
     parser.add_argument("--loss", type=str, default="MSE", choices=['NCC', 'MSE']) #TODO: add Uncertainty version
+    parser.add_argument("--numpy", action='store_true', default=False)
     
     # for regularizer
     parser.add_argument("--reg", type=str, default=None)
@@ -36,6 +41,7 @@ if __name__ == "__main__":
     # for uncertainty
     parser.add_argument("--image_sigma", type=float, default=0.02)
     parser.add_argument("--prior_lambda", type=float, default=20.0)
+    parser.add_argument("--num_samples", type=int, default=5)
 
     # validation options
     parser.add_argument("--val_interval", type=int, default=5)
@@ -49,6 +55,7 @@ if __name__ == "__main__":
 
     # log options
     parser.add_argument("--wandb_name", type=str, default='rebrain')
+    parser.add_argument("--log_dir", type=str, default='logs')
 
     args = parser.parse_args()
 
