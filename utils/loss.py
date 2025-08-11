@@ -227,8 +227,58 @@ class MultiSampleLoss:
         std_var = torch.var(torch.log(std+1e-6)) # for logging
 
         return sim_loss + self.alpha * var_loss + self.gamma * kl_loss, sim_loss.item(), var_loss.item(), kl_loss.item(), std_mean.item(), std_var.item()
+    
+class MultiSampleEachLoss:
+    def __init__(self, loss, reg, alpha, p, sig, beta=1e-3):
+        assert loss in ['MSE', 'NCC']
+        assert reg in ['none', 'atv-const', 'atv-linear']
+        assert sig in ['L1', 'L1tv']
 
-if __name__ == "__main__":
-    UL = Uncert_Loss('tv', 0.02, 10.0)
-    mean, std = torch.rand((1, 3, 36, 38, 40)), torch.rand((1, 3, 36, 38, 40))
-    UL.kl_loss(mean, std)
+        if loss == 'MSE':
+            self.loss_fn_sim = MSE_loss
+        elif loss == 'NCC':
+            self.loss_fn_sim = NCC_loss
+
+        self.alpha = float(alpha)
+        self.p_max = float(p)
+        self.beta = beta
+
+        # if tv, atv-const + p=0
+        self.reg_fn = weighted_tv_loss_l2
+        if self.reg == 'none':
+            assert alpha == 0
+            self.reg_fn = self.none_fn
+        
+        if sig == 'L1':
+            self.sig_fn = l1_loss
+        elif sig == 'L1tv':
+            self.sig_fn = tv_loss
+
+    def none_fn(self, mean, std, p):
+        return torch.tensor(0.,).cuda()
+
+    def __call__(self, warped_imgs, fixed, mean, std, epoch):
+        """
+        fixed: ground truth image [B, 1, D, H, W]
+        warped_imgs: [warped image [B, 1, D, H, W]] x N
+        mean, std: output of model [B, 3, D, H, W]
+        """
+        # stacked = torch.stack(warped_imgs, dim=0)
+
+        if self.reg_fn == 'atv-const':
+            p = self.p_max
+        elif self.reg_fn == 'atv-linear':
+            p = self.p_max * epoch / 400
+        
+        sim_loss = torch.tensor(0.0).cuda()
+        for w in warped_imgs:
+            sim_loss += self.loss_fn_sim(fixed, w)
+        sim_loss /= len(warped_imgs)
+        reg_loss = self.reg_fn(mean, std, )
+        sig_loss = self.sig_fn(std)
+
+        std_mean = torch.mean(torch.log(std+1e-6))
+        std_var = torch.var(torch.log(std+1e-6)) # for logging
+
+        return sim_loss + self.alpha * reg_loss + self.beta * sig_loss, sim_loss.item(), reg_loss.item(), sig_loss.item(), std_mean.item(), std_var.item()
+
