@@ -36,7 +36,7 @@ class VoxelMorph_Trainer(Trainer):
 
         super().__init__(args, config)
 
-    def forward(self, img, template, stacked_input, val=False):
+    def forward(self, img, template, stacked_input, epoch=0, val=False):
         out_list, _ = self.model(stacked_input)
         out = out_list[-1] # use only last one
         if self.method == 'VM':

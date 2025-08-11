@@ -116,7 +116,7 @@ class Trainer:
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
 
             # forward & calculate loss in child trainer
-            loss, _ = self.forward(img, template, stacked_input)
+            loss, _ = self.forward(img, template, stacked_input, epoch)
             tot_loss += loss.item()
 
             # backward & update model
@@ -139,7 +139,7 @@ class Trainer:
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
 
             # forward & calculate loss in child trainer
-            loss, _ = self.forward(img, template, stacked_input, val=True)
+            loss, _ = self.forward(img, template, stacked_input, epoch, val=True)
             tot_loss += loss.item()
 
         print_with_timestamp(f'Epoch {epoch}: valid loss {round(tot_loss/len(self.val_loader), 4)}')
@@ -155,7 +155,7 @@ class Trainer:
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
 
             # forward & calculate loss in child trainer
-            _, deformed_img = self.forward(img, template, stacked_input, val=True)
+            _, deformed_img = self.forward(img, template, stacked_input, epoch, val=True)
 
             if self.pair_train:
                 fig = save_middle_slices_mfm(img, template, deformed_img, epoch, idx)

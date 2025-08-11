@@ -45,7 +45,7 @@ class MrRegNet_Trainer(Trainer):
 
         super().__init__(args, config)
 
-    def forward(self, img, template, stacked_input, val=False):
+    def forward(self, img, template, stacked_input, epoch=0, val=False):
         out_list, _ = self.model(stacked_input)
         if val:
             out_list = out_list[-1:]

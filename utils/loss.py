@@ -232,7 +232,7 @@ class MultiSampleEachLoss:
     def __init__(self, loss, reg, alpha, p, sig, beta=1e-3):
         assert loss in ['MSE', 'NCC']
         assert reg in ['none', 'atv-const', 'atv-linear']
-        assert sig in ['L1', 'L1tv']
+        assert sig in ['L1', 'L1tv', 'logL1', 'logL1tv']
 
         if loss == 'MSE':
             self.loss_fn_sim = MSE_loss
@@ -244,14 +244,15 @@ class MultiSampleEachLoss:
         self.beta = beta
 
         # if tv, atv-const + p=0
+        self.reg = reg
         self.reg_fn = weighted_tv_loss_l2
         if self.reg == 'none':
-            assert alpha == 0
             self.reg_fn = self.none_fn
         
-        if sig == 'L1':
+        self.sig = sig
+        if sig == 'L1' or sig == 'logL1':
             self.sig_fn = l1_loss
-        elif sig == 'L1tv':
+        elif sig == 'L1tv' or sig == 'logL1tv':
             self.sig_fn = tv_loss
 
     def none_fn(self, mean, std, p):
@@ -265,17 +266,23 @@ class MultiSampleEachLoss:
         """
         # stacked = torch.stack(warped_imgs, dim=0)
 
-        if self.reg_fn == 'atv-const':
+        if self.reg == 'atv-const':
             p = self.p_max
-        elif self.reg_fn == 'atv-linear':
+        elif self.reg == 'atv-linear':
             p = self.p_max * epoch / 400
+        elif self.reg == 'none':
+            p = 0.0
         
         sim_loss = torch.tensor(0.0).cuda()
         for w in warped_imgs:
             sim_loss += self.loss_fn_sim(fixed, w)
         sim_loss /= len(warped_imgs)
-        reg_loss = self.reg_fn(mean, std, )
-        sig_loss = self.sig_fn(std)
+        reg_loss = self.reg_fn(mean, std, p)
+        if 'log' in self.sig:
+            log_std = torch.log(std+1e-6)
+            sig_loss = self.sig_fn(log_std)
+        else:
+            sig_loss = self.sig_fn(std)
 
         std_mean = torch.mean(torch.log(std+1e-6))
         std_var = torch.var(torch.log(std+1e-6)) # for logging

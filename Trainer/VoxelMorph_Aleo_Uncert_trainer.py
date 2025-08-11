@@ -37,7 +37,7 @@ class VoxelMorph_Aleatoric_Uncert_Trainer(Trainer):
 
         super().__init__(args, config)
 
-    def forward(self, img, template, stacked_input, val=False, return_uncert=False):
+    def forward(self, img, template, stacked_input, epoch=0, val=False, return_uncert=False):
         mean_list, std_list, _, _ = self.model(stacked_input)
         mean = mean_list[-1] # use only last one
         std = std_list[-1]

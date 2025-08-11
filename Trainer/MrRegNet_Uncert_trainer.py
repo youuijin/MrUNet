@@ -41,7 +41,7 @@ class MrRegNet_Uncert_Trainer(Trainer):
 
         super().__init__(args, config)
 
-    def forward(self, img, template, stacked_input, val=False):
+    def forward(self, img, template, stacked_input, epoch=0, val=False):
         mean_list, std_list, _, _ = self.model(stacked_input)
         if val:
             mean_list = mean_list[-1:]

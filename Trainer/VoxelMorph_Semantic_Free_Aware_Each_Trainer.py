@@ -12,6 +12,7 @@ class VoxelMorph_Semantic_Free_Aware_Each_Trainer(Trainer):
         assert args.reg in ['none', 'atv-const', 'atv-linear']
         assert args.method in ['VM-SFAeach', 'VM-SFAeach-diff']
         # setting log name first!
+        args.sig = 'logL1'
         self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha}_{args.sig}_0.001_N{args.num_samples})'
         self.method = args.method
 
@@ -29,7 +30,7 @@ class VoxelMorph_Semantic_Free_Aware_Each_Trainer(Trainer):
         self.out_channels = 6
         self.out_layers = 1
 
-        self.loss_fn = MultiSampleEachLoss(args.loss, args.reg, args.alpha, args.p, args.sig)
+        self.loss_fn = MultiSampleEachLoss(args.loss, args.reg, args.alpha, args.p, args.sig) #TODO: add sig_fn term into argparser
         self.N = args.num_samples
         self.reset_logs()
 
@@ -111,7 +112,7 @@ class VoxelMorph_Semantic_Free_Aware_Each_Trainer(Trainer):
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
 
             # forward & calculate loss in child trainer
-            _, deformed_img, std = self.forward(img, template, stacked_input, val=True, return_uncert=True)
+            _, deformed_img, std = self.forward(img, template, stacked_input, epoch, val=True, return_uncert=True)
 
             std_magnitude = torch.norm(std, dim=1)
             fig = save_middle_slices(std_magnitude, epoch, idx)
