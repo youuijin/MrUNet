@@ -280,9 +280,10 @@ class MultiSampleEachLoss:
         reg_loss = self.reg_fn(mean, std, p)
         if 'log' in self.sig:
             log_std = torch.log(std+1e-6)
-            sig_loss = self.sig_fn(log_std)
+            sig_loss = self.sig_fn(log_std)/log_std.shape.numel()
+            
         else:
-            sig_loss = self.sig_fn(std)
+            sig_loss = self.sig_fn(std)/std.shape.numel()
 
         std_mean = torch.mean(torch.log(std+1e-6))
         std_var = torch.var(torch.log(std+1e-6)) # for logging

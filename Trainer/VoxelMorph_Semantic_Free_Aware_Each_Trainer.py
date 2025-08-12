@@ -13,7 +13,8 @@ class VoxelMorph_Semantic_Free_Aware_Each_Trainer(Trainer):
         assert args.method in ['VM-SFAeach', 'VM-SFAeach-diff']
         # setting log name first!
         args.sig = 'logL1'
-        self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha}_{args.sig}_0.001_N{args.num_samples})'
+        args.beta = 1e-2
+        self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha}_{args.sig}_{args.beta}_N{args.num_samples})'
         self.method = args.method
 
         config={
@@ -30,7 +31,7 @@ class VoxelMorph_Semantic_Free_Aware_Each_Trainer(Trainer):
         self.out_channels = 6
         self.out_layers = 1
 
-        self.loss_fn = MultiSampleEachLoss(args.loss, args.reg, args.alpha, args.p, args.sig) #TODO: add sig_fn term into argparser
+        self.loss_fn = MultiSampleEachLoss(args.loss, args.reg, args.alpha, args.p, args.sig, args.beta) #TODO: add sig_fn term into argparser
         self.N = args.num_samples
         self.reset_logs()
 
