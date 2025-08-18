@@ -46,13 +46,13 @@ class MrRegNet_Trainer(Trainer):
         super().__init__(args, config)
 
     def forward(self, img, template, stacked_input, epoch=0, val=False):
-        out_list, _ = self.model(stacked_input)
+        out_list, res_out_list = self.model(stacked_input)
         if val:
             out_list = out_list[-1:]
         
         tot_loss = torch.tensor(0.0).to(img.device)
         # iteration accross resolution level
-        for i, out in enumerate(out_list):
+        for i, (out, res_out) in enumerate(zip(out_list, res_out_list)):
             cur_img = F.interpolate(img, size=out.shape[2:], mode='nearest')
             cur_template = F.interpolate(template, size=out.shape[2:], mode='nearest') 
             if self.method == 'Mr':
@@ -62,7 +62,7 @@ class MrRegNet_Trainer(Trainer):
                 accumulate_disp = self.integrate(out)
                 deformed_img = apply_deformation_using_disp(cur_img, accumulate_disp)
             
-            loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, cur_template, out)
+            loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, cur_template, res_out) #IMPORTANT: change out to res_out
 
             tot_loss += loss
 

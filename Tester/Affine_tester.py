@@ -1,36 +1,87 @@
-from Tester.Tester_base import Tester
-from utils.utils import apply_deformation_using_disp
-import torch, cv2, os
+from utils.dataset import set_dataloader, set_dataloader_usingcsv, set_paired_dataloader_usingcsv
+import csv, torch, os
+from tqdm import tqdm
+
+import cv2
+
+from utils.loss import MSE_loss, NCC_loss, SSIM_loss
+
 import nibabel as nib
 import numpy as np
 
-from tqdm import tqdm
-
-class Blur_Tester(Tester):
+class Affine_tester:
     def __init__(self, model_path, args):
-        self.set_dataset(args)
-        self.csv_path = f'{args.csv_dir}/{self.train_dataset}/blur_results.csv'
-        self.save_dir = f'visualization/{self.train_dataset}/avg_template'
-        if args.external:
-            self.csv_path = f'{args.csv_dir}/{self.train_dataset}/blur_results_external.csv'
-            self.save_dir = f'visualization/{self.train_dataset}/avg_template_external'
-        os.makedirs(self.save_dir, exist_ok=True)
-        super().__init__(model_path, args)
+        # check already tested)
+        self.log_name = model_path
+        
+        self.csv_dir = args.csv_dir
+        self.test_dataset = args.dataset
+        self.test_method = args.test_method
+        self.pair_test = args.pair_test
 
+        if self.test_dataset == 'OASIS':
+            self.label_path = 'data/OASIS_label_core'
+        elif self.test_dataset == 'DLBS':
+            self.label_path = 'data/DLBS_label_35'
+        
+        if args.pair_test:
+            _, _, self.save_loader = set_paired_dataloader_usingcsv(self.test_dataset, 'data/data_list', batch_size=1, return_path=True, numpy=False)
+        else:
+            _, _, self.save_loader = set_dataloader_usingcsv(self.test_dataset, 'data/data_list', args.template_path, 1, return_path=True, numpy=False)
+
+    def save_results(self, csv_path, row):
+        with open(csv_path, 'a', encoding='utf-8', newline='') as f:
+            wr = csv.writer(f)
+            wr.writerow(row)
+
+    def check_tested(self, model_path):
+        with open(self.csv_path, 'r', newline='') as f:
+            reader = csv.reader(f)
+            next(reader)  # 헤더 건너뛰기
+            existing_values = set(row[1] for row in reader)
+
+        # 3. 값이 없으면 추가
+        if model_path.split('/')[-1] not in existing_values:
+            return False
+        else:
+            print('Already Tested:', model_path, 'in', self.csv_path)
+            return True
+
+    def load_single_template(self, path):
+        img = nib.load(path)
+        img = img.get_fdata()
+
+        img_min, img_max = img.min(), img.max()
+        img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
+
+        return torch.tensor(img, dtype=torch.float32)
+    
     def test(self):
+        if self.test_method == 'dice':
+            self.test_dice()
+        elif self.test_method == 'similar':
+            self.test_similar()
+        elif self.test_method == 'blur':
+            self.test_blur()
+    
+    def test_blur(self):
+        self.save_dir = f'visualization/{self.test_dataset}/avg_template'
+        self.csv_path = f'{self.csv_dir}/{self.test_dataset}/blur_results.csv'
+        
+        tested = self.check_tested(self.log_name)
+        self.already_tested = False
+        if tested:
+            self.already_tested = True
+            return
+        
         aff = None
         deformed_imgs = []  # 리스트에 저장
 
-        for img, template, _, _, affine in tqdm(self.save_loader):
+        for img, template, _, _, affine, _ in tqdm(self.save_loader):
             img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
-            stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
             aff = affine.squeeze()
 
-            disp = self.model(stacked_input)[0][-1]
-            if 'diff' in self.method:
-                disp = self.integrate(disp)
-            
-            deformed_img = apply_deformation_using_disp(img, disp)
+            deformed_img = img
 
             # tot_warped += deformed_img.squeeze()
             deformed_imgs.append(deformed_img.squeeze(1).cpu())
@@ -52,7 +103,95 @@ class Blur_Tester(Tester):
         tenengrad = measure_blur_tenengrad_3d(mean_img, save_path=f'{self.save_dir}/{self.log_name}_tenegrad.png')
         fft = measure_blur_fft_3d(mean_img, save_path=f'{self.save_dir}/{self.log_name}_fft.png')
 
-        results = [self.model_type, self.log_name, round(overall_variance, 5), round(laplacian,5), round(tenengrad,5), round(fft, 5)]
+        results = ['None', self.log_name, round(overall_variance, 5), round(laplacian,5), round(tenengrad,5), round(fft, 5)]
+        self.save_results(self.csv_path, results)
+
+    def dice_score(self, seg1, seg2, label):
+        seg1 = seg1.int()
+        seg2 = seg2.int()
+        mask1 = (seg1 == label)
+        mask2 = (seg2 == label)
+        intersection = (mask1 & mask2).sum().float()
+        size1 = mask1.sum().float()
+        size2 = mask2.sum().float()
+        return torch.tensor(1.0) if (size1 + size2 == 0) else 2.0 * intersection / (size1 + size2)
+
+    def test_dice(self):
+        self.csv_path = f'{self.csv_dir}/{self.test_dataset}/dice_results.csv'
+
+        tested = self.check_tested(self.log_name)
+        self.already_tested = False
+        if tested:
+            self.already_tested = True
+            return
+
+        temp_seg = nib.load('data/mni152_label.nii').get_fdata()
+        temp_seg = torch.tensor(temp_seg).unsqueeze(0).unsqueeze(0).cuda()
+
+        dices = [0.0 for _ in range(35)]
+        cnt = 0
+        for i, (img, template, _, _, affine, path) in enumerate(tqdm(self.save_loader, position=0, leave=True, ascii=True)):
+            img_path = path[0]
+            if self.pair_test:
+                img_path, template_path = path[0][0], path[1][0]
+                temp_seg = nib.load(f"{self.label_path}/{template_path.split('/')[-1]}").get_fdata().astype(np.float32)
+                temp_seg = torch.tensor(temp_seg).unsqueeze(0).unsqueeze(0).cuda()
+            if not os.path.exists(f"{self.label_path}/{img_path.split('/')[-1]}"):
+                continue
+            cnt += 1
+            seg = nib.load(f"{self.label_path}/{img_path.split('/')[-1]}").get_fdata().astype(np.float32)
+            seg = torch.tensor(seg).unsqueeze(0).unsqueeze(0).cuda()
+
+            img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
+
+            # no deformation
+            deformed_seg = seg
+
+            torch.cuda.empty_cache()
+
+            for label in tqdm(range(35), position=1, leave=False):
+                if label+1 in [18, 34]:
+                    continue
+                dice = self.dice_score(deformed_seg, temp_seg, label+1)
+                dices[label] += dice.item()
+
+            torch.cuda.empty_cache()  # (선택) 메모리 여유를 위해
+
+        avg_dices = [d/cnt for d in dices]
+
+        avg_dices = np.array(avg_dices)
+        avg_dices = np.delete(avg_dices, [17, 33])
+
+        results = ['None', self.log_name, avg_dices.mean(), avg_dices.std()] + [a for a in avg_dices]
+        self.save_results(self.csv_path, results)
+
+    def test_similar(self):
+        self.csv_path = f'{self.csv_dir}/{self.test_dataset}/similar_results.csv'
+
+        tested = self.check_tested(self.log_name)
+        self.already_tested = False
+        if tested:
+            self.already_tested = True
+            return
+
+        mse, ncc, ssim = [], [], []
+        for img, template, _, _, _, _ in tqdm(self.save_loader):
+            img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
+            
+            deformed_img = img
+
+            # mse
+            mse.append(MSE_loss(deformed_img, template).item())
+
+            # ncc
+            ncc.append(-NCC_loss(deformed_img, template).item())
+
+            # ssim
+            ssim.append(SSIM_loss(deformed_img, template).item())
+
+        mse, ncc, ssim = np.array(mse), np.array(ncc), np.array(ssim)
+
+        results = ['None', self.log_name, mse.mean(), mse.std(), ncc.mean(), ncc.std(), ssim.mean(), ssim.std()]
         self.save_results(self.csv_path, results)
 
 def denormalize_image(normalized_img, img_min, img_max):

@@ -1,4 +1,4 @@
-from utils.dataset import set_dataloader, set_dataloader_usingcsv
+from utils.dataset import set_dataloader, set_dataloader_usingcsv, set_paired_dataloader_usingcsv
 from networks.U_Net import U_Net
 from networks.Big_U_Net import Mid_U_Net
 from networks.VecInt import VecInt
@@ -24,10 +24,10 @@ class Tester:
             if self.method == 'VM-diff':
                 self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7)
 
-        elif self.method == 'VM-Un' or self.method == 'VM-Un-diff':
+        elif self.method in ['VM-Un', 'VM-Un-diff', 'VM-Al-Un', 'VM-Al-Un-diff', 'VM-SFA', 'VM-SFAeach', 'VM-SFAeach-diff']:
             self.out_channels = 6
             self.out_layers = 1
-            if self.method == 'VM-Un-diff':
+            if 'diff' in self.method:
                 self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7)
         
         elif self.method == 'Mr' or self.method == 'Mr-diff':
@@ -46,8 +46,10 @@ class Tester:
         self.model = self.model.cuda()
         self.model.eval()
         # set data
-        # _, _, self.save_loader = set_dataloader(args.image_path, args.template_path, 1)
-        _, _, self.save_loader = set_dataloader_usingcsv(self.test_dataset, 'data/data_list', args.template_path, 1)
+        if args.pair_test:
+            _, _, self.save_loader = set_paired_dataloader_usingcsv(self.test_dataset, 'data/data_list', batch_size=1, numpy=False)
+        else:
+            _, _, self.save_loader = set_dataloader_usingcsv(self.test_dataset, 'data/data_list', args.template_path, 1, numpy=False)
 
     def set_dataset(self, args):
         # add dataset 

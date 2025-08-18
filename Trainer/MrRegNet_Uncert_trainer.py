@@ -1,5 +1,5 @@
 from Trainer.Trainer_base import Trainer
-from utils.loss import Train_Loss
+from utils.loss import Uncert_Loss
 
 from utils.utils import apply_deformation_using_disp
 from networks.VecInt import VecInt
@@ -33,7 +33,7 @@ class MrRegNet_Uncert_Trainer(Trainer):
         self.out_channels = 6
         self.out_layers = 3
 
-        self.loss_fn = Uncert_Loss(args.loss, args.reg, image_sigma, prior_lambda)
+        self.loss_fn = Uncert_Loss(args.loss, args.reg, args.image_sigma, args.prior_lambda)
         self.reset_logs()
 
         if 'diff' in args.method:

@@ -1,5 +1,5 @@
 from Tester.Tester_base import Tester
-from utils.dataset import set_dataloader, set_dataloader_usingcsv
+from utils.dataset import set_dataloader, set_dataloader_usingcsv, set_paired_dataloader_usingcsv
 from utils.utils import apply_deformation_using_disp
 
 import torch, os
@@ -10,11 +10,16 @@ from tqdm import tqdm
 class DSC_Tester(Tester):
     def __init__(self, model_path, args):
         self.set_dataset(args)
+        self.pair_test = args.pair_test
         self.csv_path = f'{args.csv_dir}/{self.train_dataset}/dice_results.csv'
         if args.external:
             self.csv_path = f'{args.csv_dir}/{self.train_dataset}/dice_results_external.csv'
         super().__init__(model_path, args)
-        _, _, self.save_loader = set_dataloader_usingcsv(self.test_dataset, 'data/data_list', args.template_path, batch_size=1, return_path=True)
+        if args.pair_test:
+            _, _, self.save_loader = set_paired_dataloader_usingcsv(self.test_dataset, 'data/data_list', batch_size=1, numpy=False, return_path=True)
+        else:
+            _, _, self.save_loader = set_dataloader_usingcsv(self.test_dataset, 'data/data_list', args.template_path, batch_size=1, numpy=False, return_path=True)
+        
         self.lut = self.load_freesurfer_lut()
 
     # LUT 불러오기 함수
@@ -52,11 +57,16 @@ class DSC_Tester(Tester):
         dices = [0.0 for _ in range(35)]
         cnt = 0
         for i, (img, template, _, _, affine, path) in enumerate(tqdm(self.save_loader, position=0, leave=True, ascii=True)):
-            path = path[0]
-            if not os.path.exists(f"{self.label_path}/{path.split('/')[-1]}"):
+            img_path = path[0]
+            if self.pair_test:
+                img_path, template_path = path[0][0], path[1][0]
+                temp_seg = nib.load(f"{self.label_path}/{template_path.split('/')[-1]}").get_fdata().astype(np.float32)
+                temp_seg = torch.tensor(temp_seg).unsqueeze(0).unsqueeze(0).cuda()
+            if not os.path.exists(f"{self.label_path}/{img_path.split('/')[-1]}"):
                 continue
             cnt += 1
-            seg = nib.load(f"{self.label_path}/{path.split('/')[-1]}").get_fdata().astype(np.float32)
+
+            seg = nib.load(f"{self.label_path}/{img_path.split('/')[-1]}").get_fdata().astype(np.float32)
             seg = torch.tensor(seg).unsqueeze(0).unsqueeze(0).cuda()
 
             img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
