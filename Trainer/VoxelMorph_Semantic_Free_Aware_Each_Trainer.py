@@ -9,12 +9,12 @@ from networks.VecInt import VecInt
 
 class VoxelMorph_Semantic_Free_Aware_Each_Trainer(Trainer):
     def __init__(self, args):
-        assert args.reg in ['none', 'atv-const', 'atv-linear']
+        assert args.reg in ['none', 'atv-const', 'atv-linear', 'wsmooth']
         assert args.method in ['VM-SFAeach', 'VM-SFAeach-diff']
         # setting log name first!
         args.sig = 'logL1'
         args.beta = 1e-2
-        self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha}_{args.sig}_{args.beta}_N{args.num_samples})'
+        self.log_name = f'{args.method}_{args.loss}({args.reg}-detach_{args.alpha}_{args.sig}_{args.beta}_N{args.num_samples})'
         self.method = args.method
 
         config={
@@ -55,7 +55,7 @@ class VoxelMorph_Semantic_Free_Aware_Each_Trainer(Trainer):
         else:
             disps = [mean]
         
-        deformed_imgs = []
+        deformed_imgs, smoothed_imgs = [], []
         for sampled_disp in disps:
             if 'diff' not in self.method:
                 deformed_img = apply_deformation_using_disp(img, sampled_disp)
@@ -64,8 +64,13 @@ class VoxelMorph_Semantic_Free_Aware_Each_Trainer(Trainer):
                 accumulate_disp = self.integrate(sampled_disp)
                 deformed_img = apply_deformation_using_disp(img, accumulate_disp)
             deformed_imgs.append(deformed_img)
-        
-        loss, sim_loss, reg_loss, sig_loss, std_mean, std_var = self.loss_fn(deformed_imgs, template, mean, std, epoch)
+
+            if self.loss_fn.reg == 'wsmooth':
+                smoothed_disp = self.loss_fn.build_phi_smooth(sampled_disp.detach(), std.detach()) # add: detach
+                smoothed_img = apply_deformation_using_disp(img, smoothed_disp)
+                smoothed_imgs.append(smoothed_img)
+
+        loss, sim_loss, reg_loss, sig_loss, std_mean, std_var = self.loss_fn(deformed_imgs, smoothed_imgs, template, mean, std, epoch)
 
         self.log_dict['Loss_tot'] += loss.item()
         self.log_dict['Loss_sim'] += sim_loss

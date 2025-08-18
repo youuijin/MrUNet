@@ -214,28 +214,3 @@ def adaptive_tv_loss_l2(phi, std, eps=1e-6):
     loss_x = (weight_x * dx).mean()
 
     return (loss_z + loss_y + loss_x) / 3.0
-
-## regularization - Adaptive Total Variation (using uncertainty)
-def weighted_tv_loss_l2(phi, std, p, eps=1e-6):
-    """
-    Adaptive total variation loss based on inverse σ².
-    phi: [B, 3, D, H, W]
-    std: [B, 3, D, H, W]  (std = exp(0.5 * log_sigma))
-    """
-    dz = (phi[:, :, 1:, :, :] - phi[:, :, :-1, :, :])**2
-    dy = (phi[:, :, :, 1:, :] - phi[:, :, :, :-1, :])**2
-    dx = (phi[:, :, :, :, 1:] - phi[:, :, :, :, :-1])**2
-
-    sigma_z = std[:, :, 1:, :, :]
-    sigma_y = std[:, :, :, 1:, :]
-    sigma_x = std[:, :, :, :, 1:]
-
-    weight_z = torch.norm(sigma_z, p=p, )
-    weight_y = 1.0 / (sigma_y**2 + eps)
-    weight_x = 1.0 / (sigma_x**2 + eps)
-
-    loss_z = (weight_z * dz).mean()
-    loss_y = (weight_y * dy).mean()
-    loss_x = (weight_x * dx).mean()
-
-    return (loss_z + loss_y + loss_x) / 3.0
