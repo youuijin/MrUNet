@@ -13,9 +13,9 @@ class MrRegNet_Uncert_Trainer(Trainer):
         assert args.method in ['Mr-Un', 'Mr-Un-diff']
         # setting log name first!
         if args.reg is None:
-            self.log_name = f'{args.method}_{args.loss}'
+            self.log_name = f'{args.method}-res_{args.loss}'
         else:
-            self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.alpha}_{args.sca_fn}_{args.alp_sca})'
+            self.log_name = f'{args.method}-res_{args.loss}({args.reg}_{args.alpha}_{args.sca_fn}_{args.alp_sca})'
         self.method = args.method
 
         config={
@@ -33,7 +33,7 @@ class MrRegNet_Uncert_Trainer(Trainer):
         self.out_channels = 6
         self.out_layers = 3
 
-        self.loss_fn = Uncert_Loss(args.loss, args.reg, args.image_sigma, args.prior_lambda)
+        self.loss_fn = Uncert_Loss(args.reg, args.image_sigma, args.prior_lambda)
         self.reset_logs()
 
         if 'diff' in args.method:
@@ -42,14 +42,14 @@ class MrRegNet_Uncert_Trainer(Trainer):
         super().__init__(args, config)
 
     def forward(self, img, template, stacked_input, epoch=0, val=False):
-        mean_list, std_list, _, _ = self.model(stacked_input)
+        mean_list, std_list, res_mean_list, res_std_list = self.model(stacked_input)
         if val:
             mean_list = mean_list[-1:]
             std_list = std_list[-1:]
         
         tot_loss = torch.tensor(0.0).to(img.device)
         # iteration accross resolution level
-        for i, (mean, std) in enumerate(zip(mean_list, std_list)):
+        for i, (mean, std, res_mean, res_std) in enumerate(zip(mean_list, std_list, res_mean_list, res_std_list)):
             cur_img = F.interpolate(img, size=mean.shape[2:], mode='nearest')
             cur_template = F.interpolate(template, size=mean.shape[2:], mode='nearest') 
 
@@ -66,7 +66,8 @@ class MrRegNet_Uncert_Trainer(Trainer):
                 accumulate_disp = self.integrate(sampled_disp)
                 deformed_img = apply_deformation_using_disp(cur_img, accumulate_disp)
             
-            loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, cur_template, out)
+            # loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, cur_template, out)
+            loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, cur_template, res_mean, res_std) #IMPORTANT: change out to res_out
 
             tot_loss += loss
 

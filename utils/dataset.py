@@ -18,6 +18,16 @@ def set_datapath(dataset, numpy):
             return './data/OASIS_brain_core_percent', None
     elif dataset == 'LUMIR':
         return './data/LUMIR_train', './data/LUMIR_val'
+    elif dataset == 'FDG_MRI':
+        if numpy:
+            return './data/FDG_MRI_brain_numpy', None
+        else:
+            return './data/FDG_MRI_brain', None
+    elif dataset == 'FDG_PET':
+        if numpy:
+            return './data/FDG_PET_numpy', None
+        else:
+            return './data/FDG_PET', None
 
 def set_dataloader(image_paths, template_path, batch_size, numpy=True, return_path=False, return_mask=False, mask_path=None):
     dataset = MedicalImageDataset(image_paths, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path)

@@ -17,7 +17,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default='OASIS', choices=['DLBS', 'OASIS', 'LUMIR'])
+    parser.add_argument("--dataset", type=str, default='OASIS', choices=['DLBS', 'OASIS', 'LUMIR', 'FDG_MRI', 'FDG_PET'])
     parser.add_argument("--model", type=str, default='U_Net', choices=['U_Net', 'Mid_U_Net', 'Big_U_Net'])
     parser.add_argument("--template_path", type=str, default="data/mni152_resample.npy")
     parser.add_argument("--start_epoch", type=int, default=0)
