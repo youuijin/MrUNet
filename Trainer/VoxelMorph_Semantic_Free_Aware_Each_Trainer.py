@@ -14,7 +14,7 @@ class VoxelMorph_Semantic_Free_Aware_Each_Trainer(Trainer):
         # setting log name first!
         args.sig = 'logL1'
         args.beta = 1e-2
-        self.log_name = f'{args.method}_{args.loss}({args.reg}-detach_{args.alpha}_{args.sig}_{args.beta}_N{args.num_samples})'
+        self.log_name = f'{args.method}_{args.loss}({args.reg}-detach-noanch_{args.alpha}_{args.sig}_{args.beta}_N{args.num_samples})'
         self.method = args.method
 
         config={

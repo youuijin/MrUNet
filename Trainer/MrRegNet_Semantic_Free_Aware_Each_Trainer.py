@@ -10,11 +10,11 @@ from networks.VecInt import VecInt
 class MrRegNet_Semantic_Free_Aware_Each_Trainer(Trainer):
     def __init__(self, args):
         assert args.reg in ['none', 'atv-const', 'atv-linear', 'wsmooth']
-        assert args.method in ['VM-SFAeach', 'VM-SFAeach-diff']
+        assert args.method in ['Mr-SFAeach', 'Mr-SFAeach-diff']
         # setting log name first!
         args.sig = 'logL1'
         args.beta = 1e-2
-        self.log_name = f'{args.method}_{args.loss}({args.reg}-detach_{args.alpha}_{args.sig}_{args.beta}_N{args.num_samples})'
+        self.log_name = f'{args.method}_{args.loss}({args.reg}-detach_{args.alpha}_sca{args.alp_sca}_{args.sig}_{args.beta}_N{args.num_samples})'
         self.method = args.method
 
         config={
@@ -29,9 +29,9 @@ class MrRegNet_Semantic_Free_Aware_Each_Trainer(Trainer):
 
         self.args = args
         self.out_channels = 6
-        self.out_layers = 1
+        self.out_layers = 3
 
-        self.loss_fn = MultiSampleEachLoss(args.loss, args.reg, args.alpha, args.p, args.sig, args.beta) #TODO: add sig_fn term into argparser
+        self.loss_fn = MultiSampleEachLoss(args.loss, args.reg, args.alpha, args.p, args.sig, args.beta, alpha_scale=args.alp_sca) #TODO: add sig_fn term into argparser
         self.N = args.num_samples
         self.reset_logs()
 

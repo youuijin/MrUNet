@@ -67,7 +67,7 @@ class MrRegNet_Uncert_Trainer(Trainer):
                 deformed_img = apply_deformation_using_disp(cur_img, accumulate_disp)
             
             # loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, cur_template, out)
-            loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, cur_template, res_mean, res_std) #IMPORTANT: change out to res_out
+            loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, cur_template, res_mean, res_std)
 
             tot_loss += loss
 

@@ -132,7 +132,7 @@ class Uncert_Loss:
         """
         return 1. / (2* self.image_sigma ** 2) * torch.mean((y_true - y_pred) ** 2)
 
-    def __call__(self, warped, fixed, mean, std):
+    def __call__(self, warped, fixed, mean, std, only_kl=False):
         """
         fixed: ground truth image [B, 1, D, H, W]
         warped: warped image [B, 1, D, H, W]
@@ -144,7 +144,12 @@ class Uncert_Loss:
         sigma_term = torch.mean(torch.log(std**2))
         sigma_var = torch.var(torch.log(std**2)) # for logging
 
-        return recon_loss + kl_loss, recon_loss.item(), kl_loss.item(), sigma_term.item(), sigma_var.item()
+        if only_kl:
+            tot_loss = kl_loss
+        else:
+            tot_loss = recon_loss
+
+        return tot_loss, recon_loss.item(), kl_loss.item(), sigma_term.item(), sigma_var.item()
     
 class Aleatoric_Uncert_Loss:
     def __init__(self, reg, prior_lambda):
@@ -229,7 +234,7 @@ class MultiSampleLoss:
         return sim_loss + self.alpha * var_loss + self.gamma * kl_loss, sim_loss.item(), var_loss.item(), kl_loss.item(), std_mean.item(), std_var.item()
     
 class MultiSampleEachLoss:
-    def __init__(self, loss, reg, alpha, p, sig, beta=1e-3):
+    def __init__(self, loss, reg, alpha, p, sig, beta=1e-3, alpha_scale=1.0):
         assert loss in ['MSE', 'NCC']
         assert reg in ['none', 'atv-const', 'atv-linear', 'wsmooth']
         assert sig in ['L1', 'L1tv', 'logL1', 'logL1tv']
@@ -242,6 +247,7 @@ class MultiSampleEachLoss:
         self.alpha = float(alpha)
         self.p_max = float(p)
         self.beta = beta
+        self.alpha_scale = 1.0
 
         # if tv, atv-const + p=0
         self.reg = reg
@@ -271,11 +277,11 @@ class MultiSampleEachLoss:
             # (max(0, L(phi, f)-L(phi', f)))**2
             with torch.no_grad():
                 loss_phi_t = self.loss_fn_sim(s_det, fixed_img)
-            loss_phi = self.loss_fn_sim(w, fixed_img)
-            hinge = torch.clamp(loss_phi - loss_phi_t, min=0.0)
-            L_anch = hinge * hinge
+            # loss_phi = self.loss_fn_sim(w, fixed_img)
+            # hinge = torch.clamp(loss_phi - loss_phi_t, min=0.0)
+            # L_anch = hinge * hinge
 
-            const_loss += L_anch
+            # const_loss += L_anch
 
         const_loss /= len(warped_imgs)
 
@@ -365,11 +371,12 @@ class MultiSampleEachLoss:
 
         return torch.cat([ux_s, uy_s, uz_s], dim=1)  # (B,3,H,W,D)
 
-    def __call__(self, warped_imgs, smoothed_imgs, fixed, mean, std, epoch):
+    def __call__(self, warped_imgs, smoothed_imgs, fixed, mean, std, epoch, idx=0):
         """
         fixed: ground truth image [B, 1, D, H, W]
         warped_imgs: [warped image [B, 1, D, H, W]] x N
         mean, std: output of model [B, 3, D, H, W]
+        idx = layer index, smaller = lower resolution
         """
         # stacked = torch.stack(warped_imgs, dim=0)
         if self.reg == 'atv-const':
