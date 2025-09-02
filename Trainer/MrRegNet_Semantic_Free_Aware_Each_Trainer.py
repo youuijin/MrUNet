@@ -41,7 +41,7 @@ class MrRegNet_Semantic_Free_Aware_Each_Trainer(Trainer):
         super().__init__(args, config)
 
     def forward(self, img, template, stacked_input, epoch, val=False, return_uncert=False):
-        mean_list, std_list, _, _ = self.model(stacked_input)
+        mean_list, std_list, res_mean_list, res_std_list = self.model(stacked_input)
         mean = mean_list[-1] # use only last one
         std = std_list[-1]
 

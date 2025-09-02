@@ -38,6 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("--p", type=float, default=0.0)
     parser.add_argument("--alp_sca", type=float, default=1.0)
     parser.add_argument("--sca_fn", type=str, default='exp', choices=['exp', 'linear'])
+    parser.add_argument("--only_kl", action='store_true', default=False)
 
     # for uncertainty
     parser.add_argument("--image_sigma", type=float, default=0.02)

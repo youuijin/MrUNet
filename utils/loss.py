@@ -112,13 +112,13 @@ class Uncert_Loss:
             self.degree_matrices[key] = D
         return self.degree_matrices[key]
 
-    def kl_loss(self, mean, std):
+    def kl_loss(self, mean, std, eps=1e-6):
         """
         mean, std: [B, 3, D, H, W]
         """
         self.degree_matrix = self._compute_degree_matrix(mean.device, mean.shape[2:])
 
-        sigma_term = self.prior_lambda * self.degree_matrix * (std**2) - torch.log(std**2)
+        sigma_term = self.prior_lambda * self.degree_matrix * (std**2) - torch.log(std**2 + eps)
         sigma_term = torch.mean(sigma_term)
 
         # prec_term = self.prior_lambda * self._precision_loss(mu)
@@ -132,7 +132,7 @@ class Uncert_Loss:
         """
         return 1. / (2* self.image_sigma ** 2) * torch.mean((y_true - y_pred) ** 2)
 
-    def __call__(self, warped, fixed, mean, std, only_kl=False):
+    def __call__(self, warped, fixed, mean, std, only_kl=False, eps=1e-6):
         """
         fixed: ground truth image [B, 1, D, H, W]
         warped: warped image [B, 1, D, H, W]
@@ -141,13 +141,13 @@ class Uncert_Loss:
         recon_loss = self.recon_loss(fixed, warped)
         kl_loss = self.kl_loss(mean, std)
 
-        sigma_term = torch.mean(torch.log(std**2))
-        sigma_var = torch.var(torch.log(std**2)) # for logging
+        sigma_term = torch.mean(torch.log(std**2 + eps))
+        sigma_var = torch.var(torch.log(std**2 + eps)) # for logging
 
         if only_kl:
             tot_loss = kl_loss
         else:
-            tot_loss = recon_loss
+            tot_loss = recon_loss + kl_loss
 
         return tot_loss, recon_loss.item(), kl_loss.item(), sigma_term.item(), sigma_var.item()
     
@@ -234,6 +234,7 @@ class MultiSampleLoss:
         return sim_loss + self.alpha * var_loss + self.gamma * kl_loss, sim_loss.item(), var_loss.item(), kl_loss.item(), std_mean.item(), std_var.item()
     
 class MultiSampleEachLoss:
+    # Now Doing in SFA
     def __init__(self, loss, reg, alpha, p, sig, beta=1e-3, alpha_scale=1.0):
         assert loss in ['MSE', 'NCC']
         assert reg in ['none', 'atv-const', 'atv-linear', 'wsmooth']

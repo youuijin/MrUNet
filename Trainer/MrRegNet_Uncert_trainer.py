@@ -12,10 +12,18 @@ class MrRegNet_Uncert_Trainer(Trainer):
     def __init__(self, args):
         assert args.method in ['Mr-Un', 'Mr-Un-diff']
         # setting log name first!
-        if args.reg is None:
-            self.log_name = f'{args.method}-res_{args.loss}'
+
+        # Add: only kl options
+        self.only_kl = args.only_kl
+        if self.only_kl:
+            prefix = 'reskl'
         else:
-            self.log_name = f'{args.method}-res_{args.loss}({args.reg}_{args.alpha}_{args.sca_fn}_{args.alp_sca})'
+            prefix = 'res'
+
+        if args.reg is None:
+            self.log_name = f'{args.method}-{prefix}_{args.loss}'
+        else:
+            self.log_name = f'{args.method}-{prefix}_{args.loss}({args.reg}_{args.alpha}_{args.sca_fn}_{args.alp_sca})'
         self.method = args.method
 
         config={
@@ -67,14 +75,22 @@ class MrRegNet_Uncert_Trainer(Trainer):
                 deformed_img = apply_deformation_using_disp(cur_img, accumulate_disp)
             
             # loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, cur_template, out)
-            loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, cur_template, res_mean, res_std)
+            if i < 2:
+                loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, cur_template, res_mean, res_std, only_kl=self.only_kl)
+            else:
+                # in highest layer, use all loss (recon + kl)
+                loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, cur_template, res_mean, res_std, only_kl=False)
 
             tot_loss += loss
 
             self.log_dict['Loss_tot'] += loss.item()
+            self.log_dict['Std_mean'] += sigma_loss
+            self.log_dict['Std_var'] += sigma_var
             self.log_dict['Loss_sim'] += sim_loss
             self.log_dict['Loss_reg'] += smoo_loss
 
+            self.log_dict[f'Std_mean/res{i+1}'] += sigma_loss
+            self.log_dict[f'Std_var/res{i+1}'] += sigma_var
             self.log_dict[f'Loss_sim/res{i+1}'] += sim_loss
             self.log_dict[f'Loss_reg/res{i+1}'] += smoo_loss
         
@@ -100,10 +116,18 @@ class MrRegNet_Uncert_Trainer(Trainer):
             'Loss_tot':0.0,
             'Loss_sim':0.0,
             'Loss_reg':0.0,
+            'Std_mean':0.0,
+            'Std_var':0.0,
             'Loss_sim/res1':0.0,
             'Loss_sim/res2':0.0,
             'Loss_sim/res3':0.0,
             'Loss_reg/res1':0.0,
             'Loss_reg/res2':0.0,
-            'Loss_reg/res3':0.0
+            'Loss_reg/res3':0.0,
+            'Std_mean/res1':0.0,
+            'Std_mean/res2':0.0,
+            'Std_mean/res3':0.0,
+            'Std_var/res1':0.0,
+            'Std_var/res2':0.0,
+            'Std_var/res3':0.0
         }
