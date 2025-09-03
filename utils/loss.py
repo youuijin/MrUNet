@@ -402,6 +402,7 @@ class MultiSampleEachLoss:
         
         if 'log' in self.sig:
             log_std = torch.log(std+1e-6)
+            log_std = torch.clamp(log_std, min=-20.0, max=10.0)
             sig_loss = self.sig_fn(log_std)/log_std.shape.numel()
         else:
             sig_loss = self.sig_fn(std)/std.shape.numel()

@@ -21,7 +21,7 @@ class Tester:
         if self.method == 'VM' or self.method == 'VM-diff' :
             self.out_channels = 3
             self.out_layers = 1
-            if self.method == 'VM-diff':
+            if 'diff' in self.method:
                 self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7)
 
         elif self.method in ['VM-Un', 'VM-Un-diff', 'VM-Al-Un', 'VM-Al-Un-diff', 'VM-SFA', 'VM-SFAeach', 'VM-SFAeach-diff']:
@@ -30,10 +30,16 @@ class Tester:
             if 'diff' in self.method:
                 self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7)
         
-        elif self.method == 'Mr' or self.method == 'Mr-diff':
+        elif self.method in ['Mr', 'Mr-diff', 'Mr-res', 'Mr-diff-res']:
             self.out_channels = 3
             self.out_layers = 3
-            if self.method == 'Mr-diff':
+            if 'diff' in self.method:
+                self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7)
+
+        elif self.method in ['Mr-Un', 'Mr-Un-res', 'Mr-Un-reskl', 'Mr-Un-diff', 'Mr-Un-diff-res']:
+            self.out_channels = 6
+            self.out_layers = 3
+            if 'diff' in self.method:
                 self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7)
 
         # set model
@@ -69,7 +75,7 @@ class Tester:
         if self.test_dataset == 'OASIS':
             self.label_path = 'data/OASIS_label_core'
         elif self.test_dataset == 'DLBS':
-            self.label_path = 'data/DLBS_label_35'
+            self.label_path = 'data/DLBS_label_core'
     
     def save_results(self, csv_path, row):
         with open(csv_path, 'a', encoding='utf-8', newline='') as f:
@@ -80,7 +86,10 @@ class Tester:
         with open(self.csv_path, 'r', newline='') as f:
             reader = csv.reader(f)
             next(reader)  # 헤더 건너뛰기
-            existing_values = set(row[1] for row in reader)
+            existing_values = set()
+            for row in reader:
+                existing_values.add(row[1])
+                existing_values.add(row[2])
 
         # 3. 값이 없으면 추가
         if model_path.split('/')[-1] not in existing_values:

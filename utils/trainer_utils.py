@@ -5,6 +5,7 @@ from Trainer.MrRegNet_Uncert_trainer import MrRegNet_Uncert_Trainer
 from Trainer.VoxelMorph_Aleo_Uncert_trainer import VoxelMorph_Aleatoric_Uncert_Trainer
 from Trainer.VoxelMorph_Semantic_Free_Aware_Trainer import VoxelMorph_Semantic_Free_Aware_Trainer
 from Trainer.VoxelMorph_Semantic_Free_Aware_Each_Trainer import VoxelMorph_Semantic_Free_Aware_Each_Trainer
+from Trainer.MrRegNet_Semantic_Free_Aware_Each_Trainer import MrRegNet_Semantic_Free_Aware_Each_Trainer
 
 def set_trainer(args):
     if args.method == "VM" or args.method == "VM-diff":
@@ -22,6 +23,8 @@ def set_trainer(args):
         trainer = VoxelMorph_Semantic_Free_Aware_Trainer(args)
     elif args.method == "VM-SFAeach" or args.method == "VM-SFAeach-diff":
         trainer = VoxelMorph_Semantic_Free_Aware_Each_Trainer(args)
+    elif args.method == "Mr-SFAeach" or args.method == "Mr-SFAeach-diff":
+        trainer = MrRegNet_Semantic_Free_Aware_Each_Trainer(args)
     else:
         raise ValueError("Error! Undefined Method:", args.method)
     
