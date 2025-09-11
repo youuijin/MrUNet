@@ -2,7 +2,7 @@ from utils.dataset import set_dataloader, set_dataloader_usingcsv, set_paired_da
 from networks.U_Net import U_Net
 from networks.Big_U_Net import Mid_U_Net
 from networks.VecInt import VecInt
-import csv, torch
+import csv, torch, os
 
 import nibabel as nib
 
@@ -83,20 +83,26 @@ class Tester:
             wr.writerow(row)
 
     def check_tested(self, model_path):
-        with open(self.csv_path, 'r', newline='') as f:
-            reader = csv.reader(f)
-            next(reader)  # 헤더 건너뛰기
-            existing_values = set()
-            for row in reader:
-                existing_values.add(row[1])
-                existing_values.add(row[2])
+        try:
+            with open(self.csv_path, 'r', newline='') as f:
+                reader = csv.reader(f)
+                next(reader)  # 헤더 건너뛰기
+                existing_values = set()
+                for row in reader:
+                    existing_values.add(row[1])
+                    existing_values.add(row[2])
 
-        # 3. 값이 없으면 추가
-        if model_path.split('/')[-1] not in existing_values:
+            # 3. 값이 없으면 추가
+            if model_path.split('/')[-1] not in existing_values:
+                return False
+            else:
+                print('Already Tested:', model_path)
+                return True
+        except:
+            with open(self.csv_path, 'w', newline='') as f:
+                w = csv.writer(f)
+                w.writerow(['train_dataset','model','log_name','ICC','slope','y-intercept','R2'])
             return False
-        else:
-            print('Already Tested:', model_path)
-            return True
 
     def load_single_template(self, path):
         img = nib.load(path)

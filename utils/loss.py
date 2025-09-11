@@ -311,7 +311,7 @@ class MultiSampleEachLoss:
     def conf_from_std(self, std, sigma0=1.0, p=1.0, wmin=1e-3, wmax=10.0):
         # std: (B,1,H,W,D) or (B,3,H,W,D)
         # 네 식: exp(-(std-1)) == exp(-((std/sigma0)**p)) with sigma0=1,p=1 (단순화)
-        conf = torch.exp(- (std - sigma0).clamp_min(1e-6).pow(p))
+        conf = torch.exp(- (std - sigma0).pow(p))
         # return conf.clamp(wmin, wmax)  # 너무 큰/작은 값 컷
         return conf
 

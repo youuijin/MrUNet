@@ -220,8 +220,14 @@ class FixedPairDataset(Dataset):
 import csv
 
 def set_dataloader_usingcsv(dataset, csv_dir, template_path, batch_size, numpy=True, return_path=False, return_mask=False, mask_path=None):
-    train_dataset = MedicalImageDatasetCSV(f'{csv_dir}/{dataset}_train.csv', template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
-    val_dataset = MedicalImageDatasetCSV(f'{csv_dir}/{dataset}_valid.csv', template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
+    if numpy:
+        train_file = f'{csv_dir}/{dataset}/{dataset}_train_numpy.csv'
+        valid_file = f'{csv_dir}/{dataset}/{dataset}_valid_numpy.csv'
+    else:
+        train_file = f'{csv_dir}/{dataset}/{dataset}_train.csv'
+        valid_file = f'{csv_dir}/{dataset}/{dataset}_valid.csv'
+    train_dataset = MedicalImageDatasetCSV(train_file, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
+    val_dataset = MedicalImageDatasetCSV(valid_file, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path)
 
     # DataLoader
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -290,14 +296,21 @@ class MedicalImageDatasetCSV(Dataset):
         return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine
 
 def set_paired_dataloader_usingcsv(dataset, csv_dir, batch_size=1, numpy=True, return_path=False, return_mask=False, mask_path=None):
-    with open(f'{csv_dir}/{dataset}_train_pair.csv', newline='', encoding='utf-8') as f:
+    if numpy:
+        train_file = f'{csv_dir}/{dataset}/{dataset}_train_numpy.csv'
+        valid_file = f'{csv_dir}/{dataset}/{dataset}_valid_pair_numpy.csv'
+    else:
+        train_file = f'{csv_dir}/{dataset}/{dataset}_train.csv'
+        valid_file = f'{csv_dir}/{dataset}/{dataset}_valid_pair.csv'
+
+    with open(train_file, newline='', encoding='utf-8') as f:
         reader = csv.reader(f)
         next(reader)
         rows = list(reader)
     train_image_paths = [s[0] for s in rows]
     train_dataset = RandomInterPatientDataset(train_image_paths, numpy=numpy, return_path=return_path)
     
-    with open(f'{csv_dir}/{dataset}_valid_pair.csv', newline='', encoding='utf-8') as f:
+    with open(valid_file, newline='', encoding='utf-8') as f:
         reader = csv.reader(f)
         next(reader)
         valid_image_paths = list(reader)
