@@ -7,6 +7,8 @@ class Train_Loss:
             self.loss_fn_sim = MSE_loss
         elif loss == 'NCC':
             self.loss_fn_sim = NCC_loss
+        elif loss == 'LNCC':
+            self.loss_fn_sim = local_NCC_loss
         
         if reg is None:
             self.loss_fn_reg, self.reg_alpha = [], []

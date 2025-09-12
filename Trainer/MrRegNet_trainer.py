@@ -57,10 +57,12 @@ class MrRegNet_Trainer(Trainer):
             cur_template = F.interpolate(template, size=out.shape[2:], mode='nearest') 
             if self.method == 'Mr':
                 deformed_img = apply_deformation_using_disp(cur_img, out)
+                self.disp_field = out
             elif self.method == 'Mr-diff':
                 # velocity field to deformation field
                 accumulate_disp = self.integrate(out)
                 deformed_img = apply_deformation_using_disp(cur_img, accumulate_disp)
+                self.disp_field = accumulate_disp
             
             loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, cur_template, res_out) #IMPORTANT: change out to res_out
 
@@ -102,3 +104,6 @@ class MrRegNet_Trainer(Trainer):
             'Loss_reg/res2':0.0,
             'Loss_reg/res3':0.0
         }
+
+    def get_disp(self):
+        return self.disp_field

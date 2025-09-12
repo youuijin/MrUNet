@@ -3,7 +3,7 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 from networks.network_utils import set_model
 from utils.dataset import set_dataloader, set_paired_dataloader, set_datapath
-from utils.utils import set_seed, save_middle_slices, save_middle_slices_mfm, print_with_timestamp
+from utils.utils import set_seed, save_middle_slices, save_middle_slices_mfm, print_with_timestamp, save_grid_spline
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -156,6 +156,7 @@ class Trainer:
 
             # forward & calculate loss in child trainer
             _, deformed_img = self.forward(img, template, stacked_input, epoch, val=True)
+            disp = self.get_disp()
 
             if self.pair_train:
                 fig = save_middle_slices_mfm(img, template, deformed_img, epoch, idx)
@@ -173,5 +174,9 @@ class Trainer:
                     # wandb.log({f"Template": wandb.Image(fig)}, step=epoch)
                     self.writer.add_figure(f'Template', fig, epoch)
                     plt.close(fig)
+
+            fig = save_grid_spline(disp)
+            self.writer.add_figure(f'disps_img{idx}', fig, epoch)
+            plt.close(fig)
         
         print_with_timestamp(f'Epoch {epoch}: Successfully saved {num} images')

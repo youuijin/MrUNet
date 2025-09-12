@@ -29,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--method", type=str, default='VM', choices=['VM', 'Mr', 'VM-Un', 'Mr-Un', 'VM-diff', 'Mr-diff', 'VM-Un-diff', 'VM-Al-Un', 'VM-SFA', 'VM-SFA-diff', 'VM-SFAeach', 'VM-SFAeach-diff', 'Mr-SFAeach', 'Mr-SFAeach-diff'])
-    parser.add_argument("--loss", type=str, default="MSE", choices=['NCC', 'MSE']) #TODO: add Uncertainty version
+    parser.add_argument("--loss", type=str, default="MSE", choices=['NCC', 'MSE', 'LNCC']) #TODO: add Uncertainty version
     parser.add_argument("--numpy", action='store_true', default=False)
     
     # for regularizer

@@ -41,10 +41,12 @@ class VoxelMorph_Trainer(Trainer):
         out = out_list[-1] # use only last one
         if self.method == 'VM':
             deformed_img = apply_deformation_using_disp(img, out)
+            self.disp_field = out
         elif self.method == 'VM-diff':
             # velocity field to deformation field
             accumulate_disp = self.integrate(out)
             deformed_img = apply_deformation_using_disp(img, accumulate_disp)
+            self.disp_field = accumulate_disp
         
         loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, template, out)
 
@@ -78,3 +80,6 @@ class VoxelMorph_Trainer(Trainer):
             'Loss_sim':0.0,
             'Loss_reg':0.0
         }
+
+    def get_disp(self):
+        return self.disp_field
