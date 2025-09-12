@@ -54,6 +54,8 @@ class MrRegNet_Uncert_Trainer(Trainer):
         if val:
             mean_list = mean_list[-1:]
             std_list = std_list[-1:]
+            res_mean_list = res_mean_list[-1:]
+            res_std_list = res_std_list[-1:]
         
         tot_loss = torch.tensor(0.0).to(img.device)
         # iteration accross resolution level
