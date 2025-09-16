@@ -68,10 +68,15 @@ def local_NCC_loss(x, y, win_size=9, eps=1e-8):
 
 ## similarity - MSE
 def MSE_loss(x, y):
+<<<<<<< HEAD
     # mse = torch.mean(torch.norm(x - y, dim=1, p=2) ** 2)
     mse = F.mse_loss(x,y)
+=======
+    # mse = torch.mean(torch.norm(x - y, dim=1, p=2) ** 2) #NOTE: change at 25.09.12
+    mse = F.mse_loss(x, y)
+>>>>>>> 9b8bbc7 (update: new tv)
     return mse
-
+    
 def gaussian_window_3d(window_size, sigma, channel):
     coords = torch.arange(window_size).float() - window_size // 2
     g = torch.exp(-(coords ** 2) / (2 * sigma ** 2))
