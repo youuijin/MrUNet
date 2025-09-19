@@ -143,6 +143,7 @@ class U_Net(nn.Module):
         tot_flows = [flows[0]]
         for f in flows[1:]:
             prev = F.interpolate(tot_flows[-1], size=f.shape[2:], mode='trilinear')
+            prev*=2
             tot_flows.append(prev + f)
         return tot_flows
     
