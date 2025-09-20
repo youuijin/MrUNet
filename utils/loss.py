@@ -16,8 +16,10 @@ class Train_Loss:
             assert len(reg.split("_")) == len(alpha.split("_"))
             self.loss_fn_reg, self.reg_alpha = [], [float(a) for a in alpha.split("_")]
             for r in reg.split('_'):
-                if r == "tv":
-                    loss_fn = tv_loss
+                if r == "tvl1":
+                    loss_fn = tv_loss_l1
+                elif r == "tvl2":
+                    loss_fn = tv_loss_l2
                 elif r == "l2":
                     loss_fn = l2_loss
                 elif r == "jac":

@@ -30,7 +30,7 @@ class Tester:
             if 'diff' in self.method:
                 self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7)
         
-        elif self.method in ['Mr', 'Mr-diff', 'Mr-res', 'Mr-diff-res']:
+        elif self.method in ['Mr', 'Mr-diff', 'Mr-res', 'Mr-diff-res', 'Mr-diff-ressca']:
             self.out_channels = 3
             self.out_layers = 3
             if 'diff' in self.method:

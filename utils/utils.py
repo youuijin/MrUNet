@@ -33,9 +33,10 @@ def normalize_deformation(disp_field):
     D, H, W = disp_field.shape[2:]
 
     norm_disp = torch.zeros_like(disp_field)
-    norm_disp[:, 0] = disp_field[:, 0] / (W / 2)
-    norm_disp[:, 1] = disp_field[:, 1] / (H / 2)
-    norm_disp[:, 2] = disp_field[:, 2] / (D / 2)
+    # use N-1 because of align_corner = True
+    norm_disp[:, 0] = disp_field[:, 0] / ((W-1) / 2)
+    norm_disp[:, 1] = disp_field[:, 1] / ((H-1) / 2)
+    norm_disp[:, 2] = disp_field[:, 2] / ((D-1) / 2)
 
     return norm_disp
 

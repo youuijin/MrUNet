@@ -117,7 +117,7 @@ def l2_loss(displace_field):
     return torch.mean(displace_field ** 2)
 
 ## regularization - Total Variation
-def tv_loss(displace):
+def tv_loss_l1(displace):
     """
     displace: Tensor of shape [B, 3, D, H, W]
     TV loss는 인접 voxel 간의 L1 차이의 평균을 구하는 방식입니다.
@@ -128,13 +128,30 @@ def tv_loss(displace):
     dy = torch.abs(displace[:, :, :, 1:, :] - displace[:, :, :, :-1, :])
     # Width 방향 차이 (W axis)
     dx = torch.abs(displace[:, :, :, :, 1:] - displace[:, :, :, :, :-1])
-    
-    loss_z = torch.mean(dz)
-    loss_y = torch.mean(dy)
-    loss_x = torch.mean(dx)
-    
-    loss = (loss_z + loss_y + loss_x)/3
+
+    loss = torch.sqrt(dz.sum() + dy.sum() + dx.sum()) / (dz.numel() + dy.numel() + dx.numel())
     return loss
+
+## regularization - Total Variation
+def tv_loss_l2(displace):
+    """
+    displace: Tensor of shape [B, 3, D, H, W]
+    TV loss는 인접 voxel 간의 L2 차이의 평균을 구하는 방식입니다.
+    """
+    # Depth 방향 차이 (D axis)
+    dz =displace[:, :, 1:, :, :] - displace[:, :, :-1, :, :]
+    # Height 방향 차이 (H axis)
+    dy =displace[:, :, :, 1:, :] - displace[:, :, :, :-1, :]
+    # Width 방향 차이 (W axis)
+    dx =displace[:, :, :, :, 1:] - displace[:, :, :, :, :-1]
+
+    eps = 1e-6
+    nz = torch.sqrt((dz*dz).sum(dim=1) + eps)    # [B,D-1,H,W]
+    ny = torch.sqrt((dy*dy).sum(dim=1) + eps)
+    nx = torch.sqrt((dx*dx).sum(dim=1) + eps)
+    loss = (nz.sum()+ny.sum()+nx.sum()) / (nz.numel()+ny.numel()+nx.numel())
+
+    return loss.mean()
 
 ## regularization - Jacobian Determiant
 def jac_det_loss(displace_field):
@@ -174,21 +191,6 @@ def jac_det_loss(displace_field):
 
     return jacobian_loss
 
-## regularization - Total Variation
-def tv_loss_l2(displace, std=None, p=None):
-    """
-    displace: Tensor of shape [B, 3, D, H, W]
-    TV loss는 인접 voxel 간의 L2 차이의 평균을 구하는 방식입니다.
-    """
-    # Depth 방향 차이 (D axis)
-    dz = torch.mean((displace[:, :, 1:, :, :] - displace[:, :, :-1, :, :])**2)
-    # Height 방향 차이 (H axis)
-    dy = torch.mean((displace[:, :, :, 1:, :] - displace[:, :, :, :-1, :])**2)
-    # Width 방향 차이 (W axis)
-    dx = torch.mean((displace[:, :, :, :, 1:] - displace[:, :, :, :, :-1])**2)
-
-    loss = (dx + dy + dz)/3.
-    return loss.mean()
 
 ## regularization - Adaptive Total Variation (using uncertainty)
 def adaptive_tv_loss_l2(phi, std, eps=1e-6):
