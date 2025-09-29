@@ -142,14 +142,16 @@ class U_Net(nn.Module):
     def combine_residuals(self, flows):
         tot_flows = [flows[0]]
         for f in flows[1:]:
+            # w/ scaling
             prev = F.interpolate(tot_flows[-1], size=f.shape[2:], mode='trilinear')
-            prev*=2
+            prev *= 2 
             tot_flows.append(prev + f)
         return tot_flows
     
     def combine_residuals_std(self, stds):
         tot_vars = [stds[0]]  # σ₁²
         for s in stds[1:]:
+            # w/o scaling
             prev = F.interpolate(tot_vars[-1], size=s.shape[2:], mode='trilinear', align_corners=True)
             tot_vars.append(torch.sqrt(prev ** 2 + s ** 2))
         return tot_vars
