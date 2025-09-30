@@ -96,16 +96,17 @@ class MedicalImageDataset(Dataset):
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
+        img = torch.from_numpy(img)
         
         if self.transform:
             img = self.augment(img)
 
         if self.return_path:
             if self.return_mask:
-                return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx], mask
-            return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx]
+                return img, torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx], mask
+            return img, torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx]
  
-        return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine
+        return img, torch.from_numpy(self.template), img_min, img_max, affine
 
 # Load pair-wise data
 import random
@@ -184,11 +185,12 @@ class RandomInterPatientDataset(Dataset):
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
+        img = torch.from_numpy(img)
 
         if self.transform:
             img = self.augment(img)
 
-        return torch.from_numpy(img), affine
+        return img, affine
 
 class FixedPairDataset(Dataset):
     def __init__(self, image_paths, numpy=True, return_path=False, transform=False):
@@ -228,11 +230,12 @@ class FixedPairDataset(Dataset):
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
+        img = torch.from_numpy(img)
 
         if self.transform:
             img = self.augment(img)
             
-        return torch.from_numpy(img), affine
+        return img, affine
 
 import csv
 
@@ -303,16 +306,17 @@ class MedicalImageDatasetCSV(Dataset):
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
+        img = torch.from_numpy(img)
         
         if self.transform:
             img = self.augment(img)
 
         if self.return_path:
             if self.return_mask:
-                return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx], mask
-            return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx]
+                return img, torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx], mask
+            return img, torch.from_numpy(self.template), img_min, img_max, affine, self.image_paths[idx]
  
-        return torch.from_numpy(img), torch.from_numpy(self.template), img_min, img_max, affine
+        return img, torch.from_numpy(self.template), img_min, img_max, affine
 
 def set_paired_dataloader_usingcsv(dataset, csv_dir, batch_size=1, numpy=True, return_path=False, return_mask=False, mask_path=None, transform=False):
     if numpy:
@@ -372,11 +376,12 @@ class FixedPairCSVDataset(Dataset):
 
         img_min, img_max = img.min(), img.max()
         img = (img - img_min) / (img_max - img_min)  # Normalize to [0,1]#
+        img = torch.tensor(img, dtype=torch.float32)
         
         if self.transform:
             img = self.augment(img)
 
-        return torch.tensor(img, dtype=torch.float32), affine
+        return img, affine
 
 if __name__ == '__main__':
     dataset = 'DLBS'

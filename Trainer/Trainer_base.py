@@ -2,7 +2,7 @@ import wandb, os, torch, shutil, warnings
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from networks.network_utils import set_model
-from utils.dataset import set_dataloader, set_paired_dataloader, set_datapath
+from utils.dataset import set_dataloader, set_paired_dataloader, set_datapath, set_paired_dataloader_usingcsv, set_dataloader_usingcsv
 from utils.utils import set_seed, save_middle_slices, save_middle_slices_mfm, print_with_timestamp, save_grid_spline
 
 from datetime import datetime
@@ -29,7 +29,7 @@ class Trainer:
 
         # add start time
         now = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%m-%d_%H-%M")
-        self.log_name = f'{self.log_name}_{now}'
+        self.log_name = f'{self.log_name}_aug{args.data_aug}_{now}'
 
         config['dataset']=args.dataset
         config['model']=args.model
@@ -49,10 +49,14 @@ class Trainer:
         self.model = self.model.cuda()
 
         self.train_data_path, self.val_data_path = set_datapath(args.dataset, args.numpy)
+        # if args.pair_train:
+        #     self.train_loader, self.val_loader, self.save_loader = set_paired_dataloader(train_dir=self.train_data_path, val_dir=self.val_data_path, batch_size=args.batch_size, numpy=args.numpy)
+        # else:
+        #     self.train_loader, self.val_loader, self.save_loader = set_dataloader(self.train_data_path, args.template_path, args.batch_size, numpy=args.numpy)
         if args.pair_train:
-            self.train_loader, self.val_loader, self.save_loader = set_paired_dataloader(train_dir=self.train_data_path, val_dir=self.val_data_path, batch_size=args.batch_size, numpy=args.numpy)
+            self.train_loader, self.val_loader, self.save_loader = set_paired_dataloader_usingcsv(args.dataset, 'data/data_list', batch_size=args.batch_size, numpy=args.numpy, transform=args.data_aug)
         else:
-            self.train_loader, self.val_loader, self.save_loader = set_dataloader(self.train_data_path, args.template_path, args.batch_size, numpy=args.numpy)
+            self.train_loader, self.val_loader, self.save_loader = set_dataloader_usingcsv(args.dataset, 'data/data_list', args.template_path, args.batch_size, numpy=args.numpy, transform=args.data_aug)
         
         if args.pair_train:
             self.save_dir = f'./results/pair/saved_models/{args.dataset}/{args.model}'

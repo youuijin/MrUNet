@@ -1,7 +1,14 @@
 import torch, random
 import torch.nn.functional as F
+import numpy as np
 
-def clamp01(x): return torch.clamp(x, 0.0, 1.0)
+def clamp01(x):
+    if isinstance(x, torch.Tensor):
+        return x.clamp(0.0, 1.0)
+    elif isinstance(x, np.ndarray):
+        return np.clip(x, 0.0, 1.0)
+    else:
+        raise TypeError(f"Unsupported type: {type(x)}")
 
 # -------- 개별 증강(범위는 나중에 strength로 스케일) --------
 def aug_brightness_contrast_gamma(x, a_rng, b_rng, g_rng, center='mean'):
@@ -104,6 +111,14 @@ class IntensityAug:
         self.hist_k = max(1, int(1 + 3*self.s))                   # control points
         self.hist_jitter = 0.05 + 0.25*self.s
 
+    def clamp01(x):
+        if isinstance(x, torch.Tensor):
+            return x.clamp(0.0, 1.0)
+        elif isinstance(x, np.ndarray):
+            return np.clip(x, 0.0, 1.0)
+        else:
+            raise TypeError(f"Unsupported type: {type(x)}")
+
     def __call__(self, x):
         y = x
         if random.random() < self.p_bc_gamma:
@@ -113,4 +128,4 @@ class IntensityAug:
         if random.random() < self.p_histwarp:
             y = aug_piecewise_hist_warp(y, self.hist_k, self.hist_jitter)
         # 항상 0-1 재정규화
-        return y.clamp(0, 1)
+        return clamp01(y)
