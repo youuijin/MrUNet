@@ -71,11 +71,13 @@ class MrRegNet_Uncert_Trainer(Trainer):
             
             if self.method == 'Mr-Un':
                 deformed_img = apply_deformation_using_disp(cur_img, sampled_disp)
+                self.disp_field = sampled_disp
             elif self.method == 'Mr-Un-diff':
                 # velocity field to deformation field
                 accumulate_disp = self.integrate(sampled_disp)
                 deformed_img = apply_deformation_using_disp(cur_img, accumulate_disp)
-            
+                self.disp_field = accumulate_disp
+
             # loss, sim_loss, smoo_loss = self.loss_fn(deformed_img, cur_template, out)
             if i < 2:
                 loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, cur_template, res_mean, res_std, only_kl=self.only_kl)
@@ -133,3 +135,6 @@ class MrRegNet_Uncert_Trainer(Trainer):
             'Std_var/res2':0.0,
             'Std_var/res3':0.0
         }
+
+    def get_disp(self):
+        return self.disp_field
