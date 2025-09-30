@@ -12,8 +12,8 @@ from sklearn.linear_model import LinearRegression
 class Quantification_tester(Tester):
     # need PET, paired MRI segmentation
     def __init__(self, model_path, args):
-        # self.set_dataset(args)
-        self.test_dataset = 'FDG_PET'
+        self.set_dataset(args)
+        self.test_dataset = 'FDG_MRI'
         self.pet_dir = 'data/FDG_PET_percent'
         
         self.label_path = args.label_path
@@ -23,7 +23,7 @@ class Quantification_tester(Tester):
         else:
             self.dice_type = 'dice35'
             self.seg_num = 35
-        self.csv_dir = f'{args.csv_dir}/FDG_PET/quant_{self.dice_type}'
+        self.csv_dir = f'{args.csv_dir}/{self.train_dataset}/quant/quant_{self.seg_num}'
         self.csv_path = f"{self.csv_dir}/quant_global.csv"
         self.plot = True
 
@@ -34,7 +34,7 @@ class Quantification_tester(Tester):
         if args.pair_test:
             _, _, self.save_loader = set_paired_dataloader_usingcsv(self.test_dataset, 'data/data_list', batch_size=1, numpy=False, return_path=True)
         else:
-            _, _, self.save_loader = set_dataloader_usingcsv(self.test_dataset, 'data/data_list', 'data/core_MNI152_PET_1mm.nii', batch_size=1, numpy=False, return_path=True)
+            _, _, self.save_loader = set_dataloader_usingcsv(self.test_dataset, 'data/data_list', 'data/mni152_resample.nii', batch_size=1, numpy=False, return_path=True)
         
         if self.dice_type == 'dice6':
             self.label_name = {
@@ -183,23 +183,25 @@ class Quantification_tester(Tester):
 
         origin_SUVrs = [[] for _ in range(self.seg_num)] # for all labels + global
         moved_SUVrs = [[] for _ in range(self.seg_num)] # for all labels + global
-        # dices = [[] for _ in range(self.seg_num)]
-        # dices_ref = []
         cnt = 0
 
         for img, template, _, _, _, path in tqdm(self.save_loader):
+            # img, template: MR images
             path = path[0]
-            sub_name = path.split('/')[-1].split("_")[1] # sub-N
+            sub_name = path.split('/')[-1].split("_")[0] # sub-N
             seg_path = f"{self.label_path}/{sub_name}_T1w_MRI.nii.gz"
+            pet_path = f"{self.pet_dir}/core_{sub_name}_FDG_PET.nii.gz"
 
-            if not os.path.exists(seg_path):
-                print(seg_path)
-                print("No Segments")
+            if not os.path.exists(seg_path) or not os.path.exists(pet_path):
+                print(seg_path, pet_path)
+                print("No Segments or PET scans")
                 continue
             cnt += 1
 
             seg = nib.load(seg_path).get_fdata().astype(np.float32)
             seg = torch.tensor(seg).unsqueeze(0).unsqueeze(0).cuda()
+            pet = nib.load(pet_path).get_fdata().astype(np.float32)
+            pet = torch.tensor(pet).unsqueeze(0).unsqueeze(0).cuda()
 
             img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
@@ -208,8 +210,8 @@ class Quantification_tester(Tester):
             if 'diff' in self.method:
                 disp = self.integrate(disp)
 
-            deformed_img = apply_deformation_using_disp(img, disp) # deformed PET
-            deformed_seg = apply_deformation_using_disp(seg, disp, mode='nearest') # to calculate dice score
+            deformed_pet = apply_deformation_using_disp(pet, disp) # deformed PET
+            # deformed_seg = apply_deformation_using_disp(seg, disp, mode='nearest')
 
 
             # calc reference region (6)
@@ -217,18 +219,18 @@ class Quantification_tester(Tester):
                 ref_num = [6]
             else:
                 ref_num = [6, 24]
-            origin_suv_ref = self.calc_suv(seg, img, ref_num)
-            moved_suv_ref = self.calc_suv(temp_seg, deformed_img, ref_num)
+            origin_suv_ref = self.calc_suv(seg, pet, ref_num)
+            moved_suv_ref = self.calc_suv(temp_seg, deformed_pet, ref_num)
 
             for label in tqdm(self.label_name, position=1, leave=False): # label: 1, 2, 3, 4, 5
-                origin_suv = self.calc_suv(seg, img, label)
-                moved_suv = self.calc_suv(temp_seg, deformed_img, label)
+                origin_suv = self.calc_suv(seg, pet, label)
+                moved_suv = self.calc_suv(temp_seg, deformed_pet, label)
                 origin_SUVrs[label-1].append((origin_suv/origin_suv_ref).item())
                 moved_SUVrs[label-1].append((moved_suv/moved_suv_ref).item())
 
             # calculate global
-            origin_suv = self.calc_suv(seg, img, [i for i in self.label_name if i not in ref_num])
-            moved_suv = self.calc_suv(temp_seg, deformed_img, [i for i in self.label_name if i not in ref_num])
+            origin_suv = self.calc_suv(seg, pet, [i for i in self.label_name if i not in ref_num])
+            moved_suv = self.calc_suv(temp_seg, deformed_pet, [i for i in self.label_name if i not in ref_num])
             origin_SUVrs[self.seg_num-1].append((origin_suv/origin_suv_ref).item())
             moved_SUVrs[self.seg_num-1].append((moved_suv/moved_suv_ref).item())
 
@@ -243,6 +245,11 @@ class Quantification_tester(Tester):
                 iccs.append(icc)
 
                 results = [self.trained_dataset, self.model_type, self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
+                if not os.path.exists(f'{self.csv_dir}/quant_{label_name}.csv'):
+                    header = ['train_dataset','model','log_name','ICC','slope','y-intercept','R2']
+                    with open(f'{self.csv_dir}/quant_{label_name}.csv', mode="w", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow(header)
                 self.save_results(f'{self.csv_dir}/quant_{label_name}.csv', results)
 
             iccs = np.array(iccs)
