@@ -29,10 +29,11 @@ class Trainer:
 
         # add start time
         now = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%m-%d_%H-%M")
-        self.log_name = f'{self.log_name}_aug{args.data_aug}_{now}'
-        if args.data_aug_geo:
+        if args.data_aug:
             self.log_name = f'{self.log_name}_aug{args.data_aug}_geo{args.data_aug_geo}_{now}'
-
+        else:
+            self.log_name = f'{self.log_name}_aug{args.data_aug}_{now}'
+            
         config['dataset']=args.dataset
         config['model']=args.model
         config['pair']=args.pair_train
