@@ -1,6 +1,7 @@
 import torch, random
 import torch.nn.functional as F
 import numpy as np
+import math
 
 def clamp01(x):
     if isinstance(x, torch.Tensor):
@@ -84,6 +85,94 @@ def renorm_percentile(x, p_low=1.0, p_high=99.0):
     lo, hi = p(p_low), p(p_high)
     return clamp01((torch.clamp(x, lo, hi) - lo) / (hi - lo + 1e-6))
 
+# ----- 3D affine 유틸 -----
+def affine_matrix_3d(rot_deg=(0,0,0), scale=(1,1,1), trans=(0,0,0)):
+    rx, ry, rz = [math.radians(a) for a in rot_deg]
+    sx, sy, sz = scale
+    tx, ty, tz = trans
+
+    Rx = torch.tensor([[1,0,0],[0, math.cos(rx), -math.sin(rx)],[0, math.sin(rx), math.cos(rx)]])
+    Ry = torch.tensor([[math.cos(ry),0, math.sin(ry)],[0,1,0],[-math.sin(ry),0, math.cos(ry)]])
+    Rz = torch.tensor([[math.cos(rz), -math.sin(rz),0],[math.sin(rz), math.cos(rz),0],[0,0,1]])
+    R  = Rz @ Ry @ Rx
+    S  = torch.diag(torch.tensor([sx,sy,sz]))
+    A  = (R @ S)
+
+    # theta: [3x4] (마지막 열이 translation; grid_sample 좌표계는 [-1,1] 기준이라 나중에 정규화 필요)
+    theta = torch.zeros(3,4)
+    theta[:3,:3] = A
+    theta[:, 3]  = torch.tensor([tx, ty, tz])
+    return theta  # 물리 voxel 단위 (아래에서 정규화)
+
+def random_rigid_params(max_rot=5.0, max_shift=5.0, min_scale=0.95, max_scale=1.05):
+    r = [random.uniform(-max_rot, max_rot) for _ in range(3)]
+    s = [random.uniform(min_scale, max_scale) for _ in range(3)]
+    t = [random.uniform(-max_shift, max_shift) for _ in range(3)]
+    return r, s, t
+
+def ensure_5d(x):
+    """[D,H,W] -> [1,1,D,H,W], [1,1,D,H,W]는 그대로"""
+    if x.dim() == 5:
+        return x
+    if x.dim() == 3:
+        return x.unsqueeze(0).unsqueeze(0)
+    if x.dim() == 4 and x.size(0) == 1:  # [1,D,H,W] -> 채널 추가
+        return x.unsqueeze(1)
+    raise ValueError(f"Expected 3D or 5D, got {x.shape}")
+
+def apply_affine_3d(img, theta, mode='bilinear', padding_mode='border'):
+    """
+    img: [B,C,D,H,W], theta: [B,3,4]  (voxel 좌표 기준)
+    grid_sample은 정규화 좌표([-1,1])를 기대하므로 theta를 정규화해야 함.
+    """
+    img = ensure_5d(img)
+    if theta.dim() == 2:
+        theta = theta.unsqueeze(0)  # [1,3,4]
+    B, C, D, H, W = img.shape
+
+    # voxel→normalized 변환 보정: (x' = 2*x/(W-1), y' = 2*y/(H-1), z' = 2*z/(D-1))
+    norm = torch.tensor([[2/(W-1), 0, 0, 0],
+                         [0, 2/(H-1), 0, 0],
+                         [0, 0, 2/(D-1), 0]], dtype=img.dtype, device=img.device)
+    # translation도 normalized로 변환 필요: +theta[:, :, 3] * 2/(size-1)
+    theta_n = torch.empty_like(theta)
+    theta_n[:, :3, :3] = theta[:, :3, :3] @ torch.diag(torch.tensor([1.0,1.0,1.0], device=img.device, dtype=img.dtype))
+    theta_n[:, 0, 3] = theta[:, 0, 3] * (2/(W-1))
+    theta_n[:, 1, 3] = theta[:, 1, 3] * (2/(H-1))
+    theta_n[:, 2, 3] = theta[:, 2, 3] * (2/(D-1))
+
+    grid = F.affine_grid(theta_n, size=img.size(), align_corners=True)
+    out  = F.grid_sample(img, grid, mode=mode, padding_mode=padding_mode, align_corners=True)
+    return out
+
+# ----- 예: 배치 1개, moving만 랜덤 rigid 증강 -----
+def augment_pair(moving, fixed,
+                 move_rot=8.0, move_shift=6.0, move_scale=(0.94,1.06),
+                 intensity_aug_fn=None):
+    """
+    moving/fixed: [1,1,D,H,W], 이미 [0,1] 정규화된 텐서
+    intensity_aug_fn: 강도 증강 함수 (각각 독립 적용 권장)
+    """
+    m, f = moving.clone(), fixed.clone()
+
+    # 강도 증강: 두 영상에 각각(독립) 적용
+    if intensity_aug_fn:
+        m = intensity_aug_fn(m)
+        f = intensity_aug_fn(f)
+
+    # 기하 증강: moving만 약하게
+    r, s, t = random_rigid_params(max_rot=move_rot,
+                                  max_shift=move_shift,
+                                  min_scale=move_scale[0],
+                                  max_scale=move_scale[1])
+    theta = affine_matrix_3d(r, s, t).to(m.device, m.dtype).unsqueeze(0)  # [1,3,4]
+    m = apply_affine_3d(m, theta, mode='bilinear', padding_mode='border')
+
+    # fixed는 그대로 (추론 시나리오와 일관)
+    return m.clamp(0,1), f.clamp(0,1)
+
+
+
 # -------- 통합 증강 파이프라인 (strength로 조절) --------
 class IntensityAug:
     """
@@ -111,6 +200,10 @@ class IntensityAug:
         self.hist_k = max(1, int(1 + 3*self.s))                   # control points
         self.hist_jitter = 0.05 + 0.25*self.s
 
+        self.move_rot=6.0
+        self.move_shift=6.0
+        self.move_scale=(0.95,1.05)
+
     def clamp01(x):
         if isinstance(x, torch.Tensor):
             return x.clamp(0.0, 1.0)
@@ -119,7 +212,7 @@ class IntensityAug:
         else:
             raise TypeError(f"Unsupported type: {type(x)}")
 
-    def __call__(self, x):
+    def __call__(self, x, geo=False):
         y = x
         if random.random() < self.p_bc_gamma:
             y = aug_brightness_contrast_gamma(y, self.a_rng, self.b_rng, self.g_rng)
@@ -127,5 +220,15 @@ class IntensityAug:
             y = aug_bias_field(y, self.bias_alpha)
         if random.random() < self.p_histwarp:
             y = aug_piecewise_hist_warp(y, self.hist_k, self.hist_jitter)
+
+        if geo:
+            # 기하 증강: moving만 약하게
+            r, s, t = random_rigid_params(max_rot=self.move_rot,
+                                        max_shift=self.move_shift,
+                                        min_scale=self.move_scale[0],
+                                        max_scale=self.move_scale[1])
+            theta = affine_matrix_3d(r, s, t).to(y.device, y.dtype).unsqueeze(0)  # [1,3,4]
+            y = apply_affine_3d(y, theta, mode='bilinear', padding_mode='border')
+
         # 항상 0-1 재정규화
         return clamp01(y)

@@ -23,7 +23,7 @@ def set_datapath(dataset, numpy):
         if numpy:
             return './data/FDG_MRI_numpy', None
         else:
-            return './data/FDG_MRI_brain_percent', None #TODO: upload
+            return './data/FDG_MRI_brain_percent', None 
     elif dataset == 'FDG_PET':
         if numpy:
             return './data/FDG_PET_percent_numpy', None
@@ -151,7 +151,7 @@ def set_paired_dataloader(train_dir, val_dir=None, batch_size=1, numpy=True):
     return train_loader, val_loader, save_loader
 
 class RandomInterPatientDataset(Dataset):
-    def __init__(self, image_paths, numpy=True, return_path=False, transform=False):
+    def __init__(self, image_paths, numpy=True, return_path=False, transform=False, geo=False):
         """
         image_dir: directory of all training images (e.g., NIfTI)
         num_pairs_per_epoch: how many random pairs to draw per epoch
@@ -161,6 +161,7 @@ class RandomInterPatientDataset(Dataset):
         self.numpy = numpy
         self.return_path = return_path
         self.transform = transform
+        self.geo = geo
         self.augment = IntensityAug()
 
     def __len__(self):
@@ -188,7 +189,7 @@ class RandomInterPatientDataset(Dataset):
         img = torch.from_numpy(img)
 
         if self.transform:
-            img = self.augment(img)
+            img = self.augment(img, geo=self.geo)
 
         return img, affine
 
@@ -239,15 +240,15 @@ class FixedPairDataset(Dataset):
 
 import csv
 
-def set_dataloader_usingcsv(dataset, csv_dir, template_path, batch_size, numpy=True, return_path=False, return_mask=False, mask_path=None, transform=False):
+def set_dataloader_usingcsv(dataset, csv_dir, template_path, batch_size, numpy=True, return_path=False, return_mask=False, mask_path=None, transform=False, geo=False):
     if numpy:
         train_file = f'{csv_dir}/{dataset}/{dataset}_train_numpy.csv'
         valid_file = f'{csv_dir}/{dataset}/{dataset}_valid_numpy.csv'
     else:
         train_file = f'{csv_dir}/{dataset}/{dataset}_train.csv'
         valid_file = f'{csv_dir}/{dataset}/{dataset}_valid.csv'
-    train_dataset = MedicalImageDatasetCSV(train_file, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path, transform=transform)
-    val_dataset = MedicalImageDatasetCSV(valid_file, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path, transform=False)
+    train_dataset = MedicalImageDatasetCSV(train_file, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path, transform=transform, geo=geo)
+    val_dataset = MedicalImageDatasetCSV(valid_file, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path, transform=False, geo=False)
 
     # DataLoader
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -258,7 +259,7 @@ def set_dataloader_usingcsv(dataset, csv_dir, template_path, batch_size, numpy=T
 
 # Define dataset class
 class MedicalImageDatasetCSV(Dataset):
-    def __init__(self, csv_path, template_path, numpy=True, mask_path=None, transform=False, return_path=False, return_mask=False):
+    def __init__(self, csv_path, template_path, numpy=True, mask_path=None, transform=False, return_path=False, return_mask=False, geo=False):
         if return_mask and mask_path is None:
             return ValueError('If you want to use brain mask, Enter mask path.')
         
@@ -287,6 +288,7 @@ class MedicalImageDatasetCSV(Dataset):
         self.return_mask = return_mask
 
         self.transform = transform
+        self.geo = geo
         self.augment = IntensityAug()
 
     def __len__(self):
@@ -309,7 +311,7 @@ class MedicalImageDatasetCSV(Dataset):
         img = torch.from_numpy(img)
         
         if self.transform:
-            img = self.augment(img)
+            img = self.augment(img, geo=self.geo)
 
         if self.return_path:
             if self.return_mask:
@@ -318,7 +320,7 @@ class MedicalImageDatasetCSV(Dataset):
  
         return img, torch.from_numpy(self.template), img_min, img_max, affine
 
-def set_paired_dataloader_usingcsv(dataset, csv_dir, batch_size=1, numpy=True, return_path=False, return_mask=False, mask_path=None, transform=False):
+def set_paired_dataloader_usingcsv(dataset, csv_dir, batch_size=1, numpy=True, return_path=False, return_mask=False, mask_path=None, transform=False, geo=False):
     if numpy:
         train_file = f'{csv_dir}/{dataset}/{dataset}_train_numpy.csv'
         valid_file = f'{csv_dir}/{dataset}/{dataset}_valid_pair_numpy.csv'
@@ -331,7 +333,7 @@ def set_paired_dataloader_usingcsv(dataset, csv_dir, batch_size=1, numpy=True, r
         next(reader)
         rows = list(reader)
     train_image_paths = [s[0] for s in rows]
-    train_dataset = RandomInterPatientDataset(train_image_paths, numpy=numpy, return_path=return_path, transform=transform)
+    train_dataset = RandomInterPatientDataset(train_image_paths, numpy=numpy, return_path=return_path, transform=transform, geo=geo)
     
     with open(valid_file, newline='', encoding='utf-8') as f:
         reader = csv.reader(f)
@@ -379,7 +381,7 @@ class FixedPairCSVDataset(Dataset):
         img = torch.tensor(img, dtype=torch.float32)
         
         if self.transform:
-            img = self.augment(img)
+            img = self.augment(img, geo=False)
 
         return img, affine
 

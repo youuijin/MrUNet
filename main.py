@@ -32,6 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--loss", type=str, default="MSE", choices=['NCC', 'MSE', 'LNCC']) #TODO: add Uncertainty version
     parser.add_argument("--numpy", action='store_true', default=False)
     parser.add_argument("--data_aug", action='store_true', default=False)
+    parser.add_argument("--data_aug_geo", action='store_true', default=False)
     
     # for regularizer
     parser.add_argument("--reg", type=str, default=None)

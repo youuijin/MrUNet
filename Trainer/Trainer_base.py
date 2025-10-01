@@ -30,6 +30,8 @@ class Trainer:
         # add start time
         now = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%m-%d_%H-%M")
         self.log_name = f'{self.log_name}_aug{args.data_aug}_{now}'
+        if args.data_aug_geo:
+            self.log_name = f'{self.log_name}_aug{args.data_aug}_geo{args.data_aug_geo}_{now}'
 
         config['dataset']=args.dataset
         config['model']=args.model
@@ -54,9 +56,9 @@ class Trainer:
         # else:
         #     self.train_loader, self.val_loader, self.save_loader = set_dataloader(self.train_data_path, args.template_path, args.batch_size, numpy=args.numpy)
         if args.pair_train:
-            self.train_loader, self.val_loader, self.save_loader = set_paired_dataloader_usingcsv(args.dataset, 'data/data_list', batch_size=args.batch_size, numpy=args.numpy, transform=args.data_aug)
+            self.train_loader, self.val_loader, self.save_loader = set_paired_dataloader_usingcsv(args.dataset, 'data/data_list', batch_size=args.batch_size, numpy=args.numpy, transform=args.data_aug, geo=args.data_aug_geo)
         else:
-            self.train_loader, self.val_loader, self.save_loader = set_dataloader_usingcsv(args.dataset, 'data/data_list', args.template_path, args.batch_size, numpy=args.numpy, transform=args.data_aug)
+            self.train_loader, self.val_loader, self.save_loader = set_dataloader_usingcsv(args.dataset, 'data/data_list', args.template_path, args.batch_size, numpy=args.numpy, transform=args.data_aug, geo=args.data_aug_geo)
         
         if args.pair_train:
             self.save_dir = f'./results/pair/saved_models/{args.dataset}/{args.model}'
