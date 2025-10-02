@@ -120,6 +120,7 @@ class Trainer:
         tot_loss = 0.
         for (img, template, _, _, _) in self.train_loader:
             img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
+
             stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
 
             # forward & calculate loss in child trainer

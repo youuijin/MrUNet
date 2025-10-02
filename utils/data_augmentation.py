@@ -143,7 +143,7 @@ def apply_affine_3d(img, theta, mode='bilinear', padding_mode='border'):
 
     grid = F.affine_grid(theta_n, size=img.size(), align_corners=True)
     out  = F.grid_sample(img, grid, mode=mode, padding_mode=padding_mode, align_corners=True)
-    return out
+    return out.squeeze()
 
 # ----- 예: 배치 1개, moving만 랜덤 rigid 증강 -----
 def augment_pair(moving, fixed,
