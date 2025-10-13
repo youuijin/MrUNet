@@ -249,6 +249,7 @@ def set_dataloader_usingcsv(dataset, csv_dir, template_path, batch_size, numpy=T
         valid_file = f'{csv_dir}/{dataset}/{dataset}_valid.csv'
     train_dataset = MedicalImageDatasetCSV(train_file, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path, transform=transform, geo=geo)
     val_dataset = MedicalImageDatasetCSV(valid_file, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path, transform=False, geo=False)
+    # save_dataset = MedicalImageDatasetCSV(train_file, template_path, numpy=numpy, return_path=return_path, return_mask=return_mask, mask_path=mask_path, transform=False, geo=False)
 
     # DataLoader
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)

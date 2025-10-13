@@ -36,7 +36,7 @@ class Tester:
             if 'diff' in self.method:
                 self.integrate = VecInt(inshape=(160, 192, 160), nsteps=7)
 
-        elif self.method in ['Mr-Un', 'Mr-Un-res', 'Mr-Un-reskl', 'Mr-Un-diff', 'Mr-Un-diff-res']:
+        elif self.method in ['Mr-Un', 'Mr-Un-res', 'Mr-Un-reskl', 'Mr-Un-diff', 'Mr-Un-diff-res', 'Mr-Un-diff-ressca']:
             self.out_channels = 6
             self.out_layers = 3
             if 'diff' in self.method:
