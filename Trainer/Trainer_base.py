@@ -105,8 +105,7 @@ class Trainer:
                         torch.save(self.model.state_dict(), f'{self.save_dir}/not_finished/{self.log_name}_best.pt')
                     
                     if self.val_detail:
-                        self.valid_detail(epoch)
-                        cur_DSC_loss = self.log_dict['DSCs']
+                        cur_DSC_loss = self.valid_detail(epoch)
                         if best_DSC < cur_DSC_loss:
                             best_DSC = cur_DSC_loss
                             torch.save(self.model.state_dict(), f'{self.save_dir}/not_finished/{self.log_name}_bestDSC.pt')
@@ -116,13 +115,14 @@ class Trainer:
                 with torch.no_grad():
                     self.save_imgs(epoch, self.save_num)
 
-        # move trained model to complete folder 
-        try:
-            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_best.pt', f'{self.save_dir}/completed/{self.log_name}_best.pt')
-            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_last.pt', f'{self.save_dir}/completed/{self.log_name}_last.pt')
-            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_bestDSC.pt', f'{self.save_dir}/completed/{self.log_name}_bestDSC.pt')
-        except Exception as e:
-            print_with_timestamp(f"Failed to move {self.save_dir}/not_finished/{self.log_name}.pt: {e}")
+        #TODO
+        # # move trained model to complete folder 
+        # try:
+        #     shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_best.pt', f'{self.save_dir}/completed/{self.log_name}_best.pt')
+        #     shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_last.pt', f'{self.save_dir}/completed/{self.log_name}_last.pt')
+        #     shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_bestDSC.pt', f'{self.save_dir}/completed/{self.log_name}_bestDSC.pt')
+        # except Exception as e:
+        #     print_with_timestamp(f"Failed to move {self.save_dir}/not_finished/{self.log_name}.pt: {e}")
 
         # wandb.finish()
 
