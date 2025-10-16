@@ -350,3 +350,52 @@ def spline_line(x, y, smoothness=0, num_points=100):
     tck, _ = splprep([x, y], s=smoothness)
     new_points = splev(np.linspace(0, 1, num_points), tck)
     return new_points[0], new_points[1]
+
+def add_identity_to_deformation(deformation_field):
+    D, H, W, _ = deformation_field.shape
+    identity = np.stack(np.meshgrid(
+        np.arange(D), np.arange(H), np.arange(W), indexing='ij'), axis=-1)
+    return deformation_field + identity
+
+# --- 2. Jacobian Determinant 계산 ---
+def compute_jacobian_determinant(displacement_field):
+    """
+    변형장의 Jacobian Determinant를 계산하여 반환
+    displacement_field: (X, Y, Z, 3) 형태의 변형장 (displacement field를 의미)
+    """
+    displacement_field = displacement_field.squeeze(0).detach().cpu().numpy()
+    if displacement_field.shape[-1] !=3:
+        displacement_field = np.transpose(displacement_field, (1, 2, 3, 0)) # (X, Y, Z, 3)
+
+    def_voxel = displacement_field.copy()
+    deformation_field = add_identity_to_deformation(def_voxel)
+
+    dx = np.gradient(deformation_field[..., 0], axis=0)  # dφ_x/dx
+    dy = np.gradient(deformation_field[..., 0], axis=1)  # dφ_x/dy
+    dz = np.gradient(deformation_field[..., 0], axis=2)  # dφ_x/dz
+
+    ex = np.gradient(deformation_field[..., 1], axis=0)  # dφ_y/dx
+    ey = np.gradient(deformation_field[..., 1], axis=1)  # dφ_y/dy
+    ez = np.gradient(deformation_field[..., 1], axis=2)  # dφ_y/dz
+
+    fx = np.gradient(deformation_field[..., 2], axis=0)  # dφ_z/dx
+    fy = np.gradient(deformation_field[..., 2], axis=1)  # dφ_z/dy
+    fz = np.gradient(deformation_field[..., 2], axis=2)  # dφ_z/dz
+
+    # Jacobian 행렬 구성
+    jacobian = np.zeros(deformation_field.shape[:-1] + (3, 3))
+    jacobian[..., 0, 0] = dx
+    jacobian[..., 0, 1] = dy
+    jacobian[..., 0, 2] = dz
+
+    jacobian[..., 1, 0] = ex
+    jacobian[..., 1, 1] = ey
+    jacobian[..., 1, 2] = ez
+
+    jacobian[..., 2, 0] = fx
+    jacobian[..., 2, 1] = fy
+    jacobian[..., 2, 2] = fz
+
+    # # Determinant 계산
+    jacobian_det = np.linalg.det(jacobian)
+    return jacobian_det

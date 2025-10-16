@@ -23,13 +23,13 @@ if __name__ == "__main__":
     parser.add_argument("--start_epoch", type=int, default=0)
     parser.add_argument("--saved_path", default=None)
 
-    # training options # TODO: 정리
+    # training options 
     parser.add_argument("--pair_train", default=False, action='store_true')
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--method", type=str, default='VM', choices=['VM', 'Mr', 'VM-Un', 'Mr-Un', 'VM-diff', 'Mr-diff', 'VM-Un-diff', 'VM-Al-Un', 'VM-SFA', 'VM-SFA-diff', 'VM-SFAeach', 'VM-SFAeach-diff', 'Mr-SFAeach', 'Mr-SFAeach-diff'])
-    parser.add_argument("--loss", type=str, default="MSE", choices=['NCC', 'MSE', 'LNCC']) #TODO: add Uncertainty version
+    parser.add_argument("--loss", type=str, default="MSE", choices=['NCC', 'MSE', 'LNCC'])
     parser.add_argument("--numpy", action='store_true', default=False)
     parser.add_argument("--data_aug", action='store_true', default=False)
     parser.add_argument("--data_aug_geo", action='store_true', default=False)
@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     # log options
     parser.add_argument("--log_method", type=str, default='tensorboard', choices=['tensorboard', 'wandb'])
-    parser.add_argument("--wandb_name", type=str, default='rebrain')
+    parser.add_argument("--wandb_name", type=str, default='OASIS')
     parser.add_argument("--log_dir", type=str, default='logs')
 
     args = parser.parse_args()

@@ -3,10 +3,15 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 from networks.network_utils import set_model
 from utils.dataset import set_dataloader, set_paired_dataloader, set_datapath, set_paired_dataloader_usingcsv, set_dataloader_usingcsv
-from utils.utils import set_seed, save_middle_slices, save_middle_slices_mfm, print_with_timestamp, save_grid_spline
+from utils.utils import set_seed, save_middle_slices, save_middle_slices_mfm, print_with_timestamp, save_grid_spline, apply_deformation_using_disp
+
+from utils.utils import add_identity_to_deformation, compute_jacobian_determinant
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+import numpy as np
+import nibabel as nib
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -22,6 +27,7 @@ class Trainer:
         self.save_num = args.save_num
         self.pair_train = args.pair_train
         self.log_method = args.log_method
+        self.val_detail = args.val_detail
         
         if args.lr != 1e-4:
             self.log_name = f'{self.log_name}_lr{args.lr}'
@@ -46,7 +52,8 @@ class Trainer:
             wandb.init(
                 project=args.wandb_name,
                 name=self.log_name,
-                config=config
+                config=config,
+                settings=wandb.Settings(api_key="87539aeaa75ad2d8a28ec87d70e5d6ce1277c544")
             )
         else:
             self.writer = SummaryWriter(log_dir=f'{args.log_dir}/{args.dataset}/{args.model}/pair_{args.pair_train}/{self.log_name}')
@@ -58,15 +65,14 @@ class Trainer:
         self.model = self.model.cuda()
 
         self.train_data_path, self.val_data_path = set_datapath(args.dataset, args.numpy)
-        # if args.pair_train:
-        #     self.train_loader, self.val_loader, self.save_loader = set_paired_dataloader(train_dir=self.train_data_path, val_dir=self.val_data_path, batch_size=args.batch_size, numpy=args.numpy)
-        # else:
-        #     self.train_loader, self.val_loader, self.save_loader = set_dataloader(self.train_data_path, args.template_path, args.batch_size, numpy=args.numpy)
         if args.pair_train:
             self.train_loader, self.val_loader, self.save_loader = set_paired_dataloader_usingcsv(args.dataset, 'data/data_list', batch_size=args.batch_size, numpy=args.numpy, transform=args.data_aug, geo=args.data_aug_geo)
         else:
             self.train_loader, self.val_loader, self.save_loader = set_dataloader_usingcsv(args.dataset, 'data/data_list', args.template_path, args.batch_size, numpy=args.numpy, transform=args.data_aug, geo=args.data_aug_geo)
         
+        if self.val_detail:
+            _, _, self.DSC_loader = set_dataloader_usingcsv(args.dataset, 'data/data_list', args.template_path, args.batch_size, numpy=args.numpy, return_path=True, transform=False, geo=False)
+
         if args.pair_train:
             self.save_dir = f'./results/pair/saved_models/{args.dataset}/{args.model}'
         else:
@@ -87,9 +93,7 @@ class Trainer:
             self.lr_scheduler.step(args.start_epoch * len(self.train_loader))
 
     def train(self):
-        best_loss = 1e+9
-        cnt = 0
-        # save template img
+        best_loss, best_DSC = 1e+9, 0
         for epoch in range(self.start_epoch, self.epochs):
             self.train_1_epoch(epoch)
             if epoch % self.val_interval == 0:
@@ -97,15 +101,16 @@ class Trainer:
                     self.valid(epoch)
                     cur_loss = self.log_dict['Loss_tot']
                     if best_loss > cur_loss:
-                        cnt = 0
                         best_loss = cur_loss
                         torch.save(self.model.state_dict(), f'{self.save_dir}/not_finished/{self.log_name}_best.pt')
-                    else: 
-                        cnt+=1
+                    
+                    if self.val_detail:
+                        self.valid_detail(epoch)
+                        cur_DSC_loss = self.log_dict['DSCs']
+                        if best_DSC < cur_DSC_loss:
+                            best_DSC = cur_DSC_loss
+                            torch.save(self.model.state_dict(), f'{self.save_dir}/not_finished/{self.log_name}_bestDSC.pt')
 
-                    # if cnt >= 3:
-                    #     # early stop
-                    #     break
                 torch.save(self.model.state_dict(), f'{self.save_dir}/not_finished/{self.log_name}_last.pt')
             if epoch % self.save_interval == 0:
                 with torch.no_grad():
@@ -115,6 +120,7 @@ class Trainer:
         try:
             shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_best.pt', f'{self.save_dir}/completed/{self.log_name}_best.pt')
             shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_last.pt', f'{self.save_dir}/completed/{self.log_name}_last.pt')
+            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_bestDSC.pt', f'{self.save_dir}/completed/{self.log_name}_bestDSC.pt')
         except Exception as e:
             print_with_timestamp(f"Failed to move {self.save_dir}/not_finished/{self.log_name}.pt: {e}")
 
@@ -159,6 +165,78 @@ class Trainer:
         print_with_timestamp(f'Epoch {epoch}: valid loss {round(tot_loss/len(self.val_loader), 4)}')
 
         self.log(epoch, phase='valid')
+
+    def valid_detail(self, epoch):
+        # check DSCs and folding rates
+        self.model.eval()
+        tot_folding_rates = 0.
+        
+        temp_seg = nib.load('data/mni152_label.nii').get_fdata()
+        temp_seg = torch.tensor(temp_seg).unsqueeze(0).unsqueeze(0).cuda()
+        
+        dices = [0.0 for _ in range(35)]
+        cnt = 0
+        for (img, template, _, _, _, path) in self.DSC_loader:
+            path = path[0]
+            img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
+            stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
+
+            # forward & calculate loss in child trainer
+            _, _ = self.forward(img, template, stacked_input, epoch, val=True)
+            disp = self.get_disp()
+            
+            # calculate DSCs
+            sub_name = path.split('/')[-1].split('.')[0]
+            seg_path = f'data/OASIS_label_core/{sub_name}.nii.gz'
+            if not os.path.exists(seg_path):
+                continue
+            cnt += 1 
+
+            seg = nib.load(seg_path).get_fdata().astype(np.float32)
+            seg = torch.tensor(seg).unsqueeze(0).unsqueeze(0).cuda()
+            deformed_seg = apply_deformation_using_disp(seg, disp, mode='nearest')
+
+            del seg, disp
+            torch.cuda.empty_cache()
+
+            for label in range(35):
+                if label+1 in [18, 34]:
+                    continue
+                dice = self.dice_score(deformed_seg, temp_seg, label+1)
+                dices[label] += dice.item()
+
+            del img, template, stacked_input, deformed_seg
+            torch.cuda.empty_cache()  # (선택) 메모리 여유를 위해
+
+            # Calculate folding rates
+            jacobian = compute_jacobian_determinant(disp)
+            negative_mask = jacobian <= 0.
+            neg_num = negative_mask.sum().item()
+            tot_num = np.prod(jacobian.shape).item()
+
+            tot_folding_rates += neg_num/tot_num
+
+        avg_dices = [d/cnt for d in dices]
+        avg_dices = np.array(avg_dices)
+        avg_dices = np.delete(avg_dices, [17, 33])
+        tot_DSCs = avg_dices.mean()
+
+        # extracted DSCs
+        avg_dices = np.delete(avg_dices, [2,3,4,9,13,14,15,16,17,20,21,22,27,28,29,30,31,32])
+        ext_DSCs = avg_dices.mean()
+
+        print_with_timestamp(f'Epoch {epoch}: valid loss {round((tot_DSCs), 4)}')
+
+        if self.log_method == "tensorboard":
+            self.writer.add_scalar(f"valid_detail/DSCs", tot_DSCs, epoch)
+            self.writer.add_scalar(f"valid_detail/DSCs_extracted", ext_DSCs, epoch)
+            self.writer.add_scalar(f"valid_detail/folding", tot_folding_rates/len(self.DSC_loader), epoch)
+        else:
+            wandb.log({f"valid_detail/DSCs": tot_DSCs}, step=epoch)
+            wandb.log({f"valid_detail/DSCs_extracted": ext_DSCs}, step=epoch)
+            wandb.log({f"valid_detail/folding": tot_folding_rates/len(self.DSC_loader)}, step=epoch)
+        
+        return ext_DSCs
 
     def log(self, epoch, phase=None):
         if phase not in ['train', 'valid']:
