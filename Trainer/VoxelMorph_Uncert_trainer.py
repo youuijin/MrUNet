@@ -4,10 +4,8 @@ from utils.loss import Uncert_Loss
 import torch
 
 import matplotlib.pyplot as plt
-from utils.utils import save_middle_slices, save_middle_slices_mfm, apply_deformation_using_disp
+from utils.utils import save_middle_slices, save_middle_slices_mfm, apply_deformation_using_disp, save_grid_spline, print_with_timestamp
 from networks.VecInt import VecInt
-
-from datetime import datetime
 
 class VoxelMorph_Uncert_Trainer(Trainer):
     def __init__(self, args):
@@ -59,11 +57,13 @@ class VoxelMorph_Uncert_Trainer(Trainer):
 
             if self.method == 'VM-Un':
                 deformed_img = apply_deformation_using_disp(img, sampled_disp)
+                self.disp_field = sampled_disp
             elif self.method == 'VM-Un-diff':
                 # velocity field to deformation field
                 accumulate_disp = self.integrate(sampled_disp)
                 deformed_img = apply_deformation_using_disp(img, accumulate_disp)
-        
+                self.disp_field = accumulate_disp
+
             loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, template, mean, std)
 
             if tot_loss is None:
@@ -88,20 +88,6 @@ class VoxelMorph_Uncert_Trainer(Trainer):
             return tot_loss, deformed_img, std
         
         return tot_loss, deformed_img
-
-    def log(self, epoch, phase=None):
-        if phase not in ['train', 'valid']:
-            raise ValueError("Trainer's log function can only get phase ['train', 'valid'], but received", phase)
-
-        if phase == 'train':
-            num = len(self.train_loader)
-            tag = 'Train'
-        elif phase == 'valid':
-            num = len(self.val_loader)
-            tag = 'Val'
-        
-        for key, value in self.log_dict.items():
-            self.writer.add_scalar(f"{tag}/{key}", value/num, epoch)
             
     def reset_logs(self):
         # for single layer, deterministic version (VM)
@@ -123,27 +109,29 @@ class VoxelMorph_Uncert_Trainer(Trainer):
 
             # forward & calculate loss in child trainer
             _, deformed_img, std = self.forward(img, template, stacked_input, val=True, return_uncert=True)
+            disp = self.get_disp()
 
             std_magnitude = torch.norm(std, dim=1)
             fig = save_middle_slices(std_magnitude, epoch, idx)
-            # wandb.log({f"std_img{idx}": wandb.Image(fig)}, step=epoch)
-            self.writer.add_figure(f'std_img{idx}', fig, epoch)
+            self.log_single_img(f'std_img{idx}', fig, epoch)
             plt.close(fig)
 
             if self.pair_train:
                 fig = save_middle_slices_mfm(img, template, deformed_img, epoch, idx)
-                # wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
-                self.writer.add_figure(f'deformed_slices_img{idx}', fig, epoch)
+                self.log_single_img(f'deformed_slices_img{idx}', fig, epoch)
                 plt.close(fig)
             else:
                 fig = save_middle_slices(deformed_img, epoch, idx)
-                # wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
-                self.writer.add_figure(f'deformed_slices_img{idx}', fig, epoch)
+                self.log_single_img(f'deformed_slices_img{idx}', fig, epoch)
                 plt.close(fig)
 
                 if epoch == 0 and idx == 0:
                     fig = save_middle_slices(template, epoch, idx)
-                    # wandb.log({f"Template": wandb.Image(fig)}, step=epoch)
-                    self.writer.add_figure(f'Template', fig, epoch)
+                    self.log_single_img(f'Template', fig, epoch)
                     plt.close(fig)
 
+            fig = save_grid_spline(disp)
+            self.log_single_img(f'disps_img{idx}', fig, epoch)
+            plt.close(fig)
+
+        print_with_timestamp(f'Epoch {epoch}: Successfully saved {num} images')

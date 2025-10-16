@@ -56,23 +56,6 @@ class VoxelMorph_Trainer(Trainer):
         
         return loss, deformed_img
 
-    def log(self, epoch, phase=None):
-        if phase not in ['train', 'valid']:
-            raise ValueError("Trainer's log function can only get phase ['train', 'valid'], but received", phase)
-
-        if phase == 'train':
-            num = len(self.train_loader)
-            tag = 'Train'
-        elif phase == 'valid':
-            num = len(self.val_loader)
-            tag = 'Val'
-        
-        for key, value in self.log_dict.items():
-            self.writer.add_scalar(f"{tag}/{key}", value/num, epoch)
-            # wandb.log({f"{tag}/{key}": value / num}, step=epoch)
-        
-        # wandb.log({"Epoch": epoch}, step=epoch)
-
     def reset_logs(self):
         # for single layer, deterministic version (VM)
         self.log_dict = {

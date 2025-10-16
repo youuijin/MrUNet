@@ -1,7 +1,8 @@
 from Trainer.Trainer_base import Trainer
 from utils.loss import Uncert_Loss
 
-from utils.utils import apply_deformation_using_disp
+import matplotlib.pyplot as plt
+from utils.utils import save_middle_slices, save_middle_slices_mfm, apply_deformation_using_disp, save_grid_spline, print_with_timestamp
 from networks.VecInt import VecInt
 from datetime import datetime
 
@@ -49,7 +50,7 @@ class MrRegNet_Uncert_Trainer(Trainer):
 
         super().__init__(args, config)
 
-    def forward(self, img, template, stacked_input, epoch=0, val=False):
+    def forward(self, img, template, stacked_input, epoch=0, val=False, return_uncert=False):
         mean_list, std_list, res_mean_list, res_std_list = self.model(stacked_input)
         if val:
             mean_list = mean_list[-1:]
@@ -98,21 +99,10 @@ class MrRegNet_Uncert_Trainer(Trainer):
             self.log_dict[f'Loss_sim/res{i+1}'] += sim_loss
             self.log_dict[f'Loss_reg/res{i+1}'] += smoo_loss
         
-        return tot_loss, deformed_img
-
-    def log(self, epoch, phase=None):
-        if phase not in ['train', 'valid']:
-            raise ValueError("Trainer's log function can only get phase ['train', 'valid'], but received", phase)
-
-        if phase == 'train':
-            num = len(self.train_loader)
-            tag = 'Train'
-        elif phase == 'valid':
-            num = len(self.val_loader)
-            tag = 'Val'
+        if return_uncert:
+            return tot_loss, deformed_img, std
         
-        for key, value in self.log_dict.items():
-            self.writer.add_scalar(f"{tag}/{key}", value/num, epoch)
+        return tot_loss, deformed_img
 
     def reset_logs(self):
         # for multi-resolution layer, deterministic version (Mr)
@@ -138,3 +128,40 @@ class MrRegNet_Uncert_Trainer(Trainer):
 
     def get_disp(self):
         return self.disp_field
+    
+    def save_imgs(self, epoch, num):
+        self.model.eval()
+        for idx, (img, template, _, _, _) in enumerate(self.save_loader):
+            if idx >= num:
+                break
+            img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
+            stacked_input = torch.cat([img, template], dim=1) # [B, 2, D, H, W]
+
+            # forward & calculate loss in child trainer
+            _, deformed_img, std = self.forward(img, template, stacked_input, val=True, return_uncert=True)
+            disp = self.get_disp()
+
+            std_magnitude = torch.norm(std, dim=1)
+            fig = save_middle_slices(std_magnitude, epoch, idx)
+            self.log_single_img(f'std_img{idx}', fig, epoch)
+            plt.close(fig)
+
+            if self.pair_train:
+                fig = save_middle_slices_mfm(img, template, deformed_img, epoch, idx)
+                self.log_single_img(f'deformed_slices_img{idx}', fig, epoch)
+                plt.close(fig)
+            else:
+                fig = save_middle_slices(deformed_img, epoch, idx)
+                self.log_single_img(f'deformed_slices_img{idx}', fig, epoch)
+                plt.close(fig)
+
+                if epoch == 0 and idx == 0:
+                    fig = save_middle_slices(template, epoch, idx)
+                    self.log_single_img(f'Template', fig, epoch)
+                    plt.close(fig)
+
+            fig = save_grid_spline(disp)
+            self.log_single_img(f'disps_img{idx}', fig, epoch)
+            plt.close(fig)
+
+        print_with_timestamp(f'Epoch {epoch}: Successfully saved {num} images')

@@ -21,6 +21,7 @@ class Trainer:
         self.save_interval = args.save_interval
         self.save_num = args.save_num
         self.pair_train = args.pair_train
+        self.log_method = args.log_method
         
         if args.lr != 1e-4:
             self.log_name = f'{self.log_name}_lr{args.lr}'
@@ -41,12 +42,14 @@ class Trainer:
         config['model']=args.model
         config['pair']=args.pair_train
 
-        # wandb.init(
-        #     project=args.wandb_name,
-        #     name=self.log_name,
-        #     config=config
-        # )
-        self.writer = SummaryWriter(log_dir=f'{args.log_dir}/{args.dataset}/{args.model}/pair_{args.pair_train}/{self.log_name}')
+        if self.log_method == 'wandb':
+            wandb.init(
+                project=args.wandb_name,
+                name=self.log_name,
+                config=config
+            )
+        else:
+            self.writer = SummaryWriter(log_dir=f'{args.log_dir}/{args.dataset}/{args.model}/pair_{args.pair_train}/{self.log_name}')
         
         # Setting Model
         self.model = set_model(args.model, out_channels=self.out_channels, out_layers=self.out_layers)
@@ -157,6 +160,29 @@ class Trainer:
 
         self.log(epoch, phase='valid')
 
+    def log(self, epoch, phase=None):
+        if phase not in ['train', 'valid']:
+            raise ValueError("Trainer's log function can only get phase ['train', 'valid'], but received", phase)
+
+        if phase == 'train':
+            num = len(self.train_loader)
+            tag = 'Train'
+        elif phase == 'valid':
+            num = len(self.val_loader)
+            tag = 'Val'
+        
+        for key, value in self.log_dict.items():
+            if self.log_method == "tensorboard":
+                self.writer.add_scalar(f"{tag}/{key}", value/num, epoch)
+            else:
+                wandb.log({f"{tag}/{key}": value/num}, step=epoch)
+
+    def log_single_img(self, name, fig, epoch):
+        if self.log_method == 'tensorboard':
+            self.writer.add_figure(name, fig, epoch)
+        else:
+            wandb.log({name: wandb.Image(fig)}, step=epoch)
+
     def save_imgs(self, epoch, num):
         self.model.eval()
         for idx, (img, template, _, _, _) in enumerate(self.save_loader):
@@ -171,23 +197,20 @@ class Trainer:
 
             if self.pair_train:
                 fig = save_middle_slices_mfm(img, template, deformed_img, epoch, idx)
-                # wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
-                self.writer.add_figure(f'deformed_slices_img{idx}', fig, epoch)
+                self.log_single_img(f'deformed_slices_img{idx}', fig, epoch)
                 plt.close(fig)
             else:
                 fig = save_middle_slices(deformed_img, epoch, idx)
-                # wandb.log({f"deformed_slices_img{idx}": wandb.Image(fig)}, step=epoch)
-                self.writer.add_figure(f'deformed_slices_img{idx}', fig, epoch)
+                self.log_single_img(f'deformed_slices_img{idx}', fig, epoch)
                 plt.close(fig)
 
                 if epoch == 0 and idx == 0:
                     fig = save_middle_slices(template, epoch, idx)
-                    # wandb.log({f"Template": wandb.Image(fig)}, step=epoch)
-                    self.writer.add_figure(f'Template', fig, epoch)
+                    self.log_single_img(f'Template', fig, epoch)
                     plt.close(fig)
 
             fig = save_grid_spline(disp)
-            self.writer.add_figure(f'disps_img{idx}', fig, epoch)
+            self.log_single_img(f'disps_img{idx}', fig, epoch)
             plt.close(fig)
         
         print_with_timestamp(f'Epoch {epoch}: Successfully saved {num} images')

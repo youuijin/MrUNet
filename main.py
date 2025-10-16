@@ -58,6 +58,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr_milestones", type=str, default=None)
 
     # log options
+    parser.add_argument("--log_method", type=str, default='tensorboard', choices=['tensorboard', 'wandb'])
     parser.add_argument("--wandb_name", type=str, default='rebrain')
     parser.add_argument("--log_dir", type=str, default='logs')
 

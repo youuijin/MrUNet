@@ -80,13 +80,6 @@ class MrRegNet_Semantic_Free_Aware_Each_Trainer(Trainer):
                     smoothed_imgs.append(smoothed_img)
 
             loss, sim_loss, reg_loss, sig_loss, std_mean, std_var = self.loss_fn(deformed_imgs, smoothed_imgs, cur_template, mean, res_std, epoch) # TODO: check res_std or std
-            # print("RES", i)
-            # print(loss)
-            # print(sim_loss)
-            # print(reg_loss)
-            # print(sig_loss)
-            # print(std_mean)
-            # print(std_var)
             tot_loss += loss
 
             if not torch.isfinite(loss):
@@ -116,20 +109,6 @@ class MrRegNet_Semantic_Free_Aware_Each_Trainer(Trainer):
        
         
         return loss, deformed_img
-
-    def log(self, epoch, phase=None):
-        if phase not in ['train', 'valid']:
-            raise ValueError("Trainer's log function can only get phase ['train', 'valid'], but received", phase)
-
-        if phase == 'train':
-            num = len(self.train_loader)
-            tag = 'Train'
-        elif phase == 'valid':
-            num = len(self.val_loader)
-            tag = 'Val'
-        
-        for key, value in self.log_dict.items():
-            self.writer.add_scalar(f"{tag}/{key}", value/num, epoch)
 
     def reset_logs(self):
         # for single layer, deterministic version (VM)
