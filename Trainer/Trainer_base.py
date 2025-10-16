@@ -196,7 +196,7 @@ class Trainer:
             seg = torch.tensor(seg).unsqueeze(0).unsqueeze(0).cuda()
             deformed_seg = apply_deformation_using_disp(seg, disp, mode='nearest')
 
-            del seg, disp
+            # del seg, disp
             torch.cuda.empty_cache()
 
             for label in range(35):
@@ -237,6 +237,16 @@ class Trainer:
             wandb.log({f"valid_detail/folding": tot_folding_rates/len(self.DSC_loader)}, step=epoch)
         
         return ext_DSCs
+    
+    def dice_score(self, seg1, seg2, label):
+        seg1 = seg1.int()
+        seg2 = seg2.int()
+        mask1 = (seg1 == label)
+        mask2 = (seg2 == label)
+        intersection = (mask1 & mask2).sum().float()
+        size1 = mask1.sum().float()
+        size2 = mask2.sum().float()
+        return torch.tensor(1.0) if (size1 + size2 == 0) else 2.0 * intersection / (size1 + size2)
 
     def log(self, epoch, phase=None):
         if phase not in ['train', 'valid']:
