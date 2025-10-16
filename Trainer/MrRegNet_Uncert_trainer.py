@@ -15,14 +15,10 @@ class MrRegNet_Uncert_Trainer(Trainer):
 
         # Add: only kl options
         self.only_kl = args.only_kl
-        # if self.only_kl:
-        #     prefix = 'resscakl'
-        # else:
-        #     prefix = 'ressca'
         if self.only_kl:
-            prefix = 'reskl'
+            prefix = 'resscakl'
         else:
-            prefix = 'res'
+            prefix = 'ressca'
 
         if args.reg is None:
             self.log_name = f'{args.method}-{prefix}_{args.loss}'

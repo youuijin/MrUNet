@@ -45,7 +45,7 @@ if __name__ == "__main__":
     # for uncertainty
     parser.add_argument("--image_sigma", type=float, default=0.02)
     parser.add_argument("--prior_lambda", type=float, default=20.0)
-    parser.add_argument("--num_samples", type=int, default=5)
+    parser.add_argument("--num_samples", type=int, default=1)
 
     # validation options
     parser.add_argument("--val_interval", type=int, default=5)

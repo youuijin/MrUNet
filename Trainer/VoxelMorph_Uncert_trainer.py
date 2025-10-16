@@ -15,6 +15,9 @@ class VoxelMorph_Uncert_Trainer(Trainer):
         assert args.method in ['VM-Un', 'VM-Un-diff']
         # setting log name first!
         self.log_name = f'{args.method}_({args.reg}_{args.image_sigma}_{args.prior_lambda})'
+        self.num_samples = args.num_samples
+        if self.num_samples>1:
+            self.log_name = f'{args.method}_({args.reg}_{args.image_sigma}_{args.prior_lambda}_N{self.num_samples})'
         self.method = args.method
 
         config={
@@ -45,32 +48,46 @@ class VoxelMorph_Uncert_Trainer(Trainer):
         mean = mean_list[-1] # use only last one
         std = std_list[-1]
 
-        if val==False:
-            # sample in Gaussian distribution
-            eps_r = torch.randn_like(mean)
-            sampled_disp = mean + eps_r * std
-        else:
-            sampled_disp = mean
+        tot_loss = None
+        for _ in range(self.num_samples):
+            if val==False:
+                # sample in Gaussian distribution
+                eps_r = torch.randn_like(mean)
+                sampled_disp = mean + eps_r * std
+            else:
+                sampled_disp = mean
 
-        if self.method == 'VM-Un':
-            deformed_img = apply_deformation_using_disp(img, sampled_disp)
-        elif self.method == 'VM-Un-diff':
-            # velocity field to deformation field
-            accumulate_disp = self.integrate(sampled_disp)
-            deformed_img = apply_deformation_using_disp(img, accumulate_disp)
+            if self.method == 'VM-Un':
+                deformed_img = apply_deformation_using_disp(img, sampled_disp)
+            elif self.method == 'VM-Un-diff':
+                # velocity field to deformation field
+                accumulate_disp = self.integrate(sampled_disp)
+                deformed_img = apply_deformation_using_disp(img, accumulate_disp)
         
-        loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, template, mean, std)
+            loss, sim_loss, smoo_loss, sigma_loss, sigma_var = self.loss_fn(deformed_img, template, mean, std)
 
-        self.log_dict['Loss_tot'] += loss.item()
-        self.log_dict['Std_mean'] += sigma_loss
-        self.log_dict['Std_var'] += sigma_var
-        self.log_dict['Loss_sim'] += sim_loss
-        self.log_dict['Loss_reg'] += smoo_loss
+            if tot_loss is None:
+                tot_loss = loss
+            else:
+                tot_loss += loss
+
+            self.log_dict['Loss_tot'] += loss.item()
+            self.log_dict['Std_mean'] += sigma_loss
+            self.log_dict['Std_var'] += sigma_var
+            self.log_dict['Loss_sim'] += sim_loss
+            self.log_dict['Loss_reg'] += smoo_loss
+
+        tot_loss /= self.num_samples
+        self.log_dict['Loss_tot'] += loss.item()/self.num_samples
+        self.log_dict['Std_mean'] += sigma_loss/self.num_samples
+        self.log_dict['Std_var'] += sigma_var/self.num_samples
+        self.log_dict['Loss_sim'] += sim_loss/self.num_samples
+        self.log_dict['Loss_reg'] += smoo_loss/self.num_samples
 
         if return_uncert:
-            return loss, deformed_img, std
+            return tot_loss, deformed_img, std
         
-        return loss, deformed_img
+        return tot_loss, deformed_img
 
     def log(self, epoch, phase=None):
         if phase not in ['train', 'valid']:

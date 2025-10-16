@@ -22,6 +22,9 @@ class Trainer:
         self.save_num = args.save_num
         self.pair_train = args.pair_train
         
+        if args.lr != 1e-4:
+            self.log_name = f'{self.log_name}_lr{args.lr}'
+
         if args.epochs != 200:
             self.log_name = f'{self.log_name}_epochs{args.epochs}'
         if args.lr_scheduler == 'multistep':
