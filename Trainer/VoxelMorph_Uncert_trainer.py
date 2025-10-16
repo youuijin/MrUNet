@@ -88,6 +88,9 @@ class VoxelMorph_Uncert_Trainer(Trainer):
             return tot_loss, deformed_img, std
         
         return tot_loss, deformed_img
+    
+    def get_disp(self):
+        return self.disp_field
             
     def reset_logs(self):
         # for single layer, deterministic version (VM)

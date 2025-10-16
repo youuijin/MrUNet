@@ -18,6 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 class Trainer:
     def __init__(self, args, config=None):
         set_seed(seed=args.seed)
+        os.environ["WANDB_SYMLINK"] = "false"
 
         # train options
         self.epochs = args.epochs
@@ -115,16 +116,20 @@ class Trainer:
                 with torch.no_grad():
                     self.save_imgs(epoch, self.save_num)
 
-        #TODO
-        # # move trained model to complete folder 
-        # try:
-        #     shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_best.pt', f'{self.save_dir}/completed/{self.log_name}_best.pt')
-        #     shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_last.pt', f'{self.save_dir}/completed/{self.log_name}_last.pt')
-        #     shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_bestDSC.pt', f'{self.save_dir}/completed/{self.log_name}_bestDSC.pt')
-        # except Exception as e:
-        #     print_with_timestamp(f"Failed to move {self.save_dir}/not_finished/{self.log_name}.pt: {e}")
+            if self.log_method == 'wandb':
+                wandb.save(f'{self.save_dir}/not_finished/{self.log_name}_best.pt')
+                wandb.save(f'{self.save_dir}/not_finished/{self.log_name}_bestDSC.pt')
+                wandb.save(f'{self.save_dir}/not_finished/{self.log_name}_last.pt')
 
-        # wandb.finish()
+        # move trained model to complete folder 
+        try:
+            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_best.pt', f'{self.save_dir}/completed/{self.log_name}_best.pt')
+            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_last.pt', f'{self.save_dir}/completed/{self.log_name}_last.pt')
+            shutil.move(f'{self.save_dir}/not_finished/{self.log_name}_bestDSC.pt', f'{self.save_dir}/completed/{self.log_name}_bestDSC.pt')
+        except Exception as e:
+            print_with_timestamp(f"Failed to move {self.save_dir}/not_finished/{self.log_name}.pt: {e}")
+
+        wandb.finish()
 
     def train_1_epoch(self, epoch):
         self.reset_logs()
