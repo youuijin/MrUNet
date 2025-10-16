@@ -72,10 +72,8 @@ if __name__ == "__main__":
     parser.add_argument("--model_dir", type=str, default='results/saved_models/OASIS/completed')
     parser.add_argument("--csv_dir", type=str, default="results/template/csvs")
 
-    parser.add_argument("--external", action='store_true', default=False)
-
     # for Affine & SyN Tester
-    parser.add_argument("--dataset", type=str, default=None)
+    parser.add_argument("--test_dataset", type=str, default=None) # if None, test with training dataset (internal)
     parser.add_argument("--label_path", type=str, default=None)
     
     parser.add_argument("--save_num", type=int, default=0)

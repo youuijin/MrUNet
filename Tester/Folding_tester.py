@@ -1,6 +1,6 @@
 from Tester.Tester_base import Tester
 
-import torch
+import torch, os, csv
 import numpy as np
 
 from tqdm import tqdm
@@ -8,9 +8,12 @@ from tqdm import tqdm
 class Folding_Tester(Tester):
     def __init__(self, model_path, args):
         self.set_dataset(args)
-        self.csv_path = f'{args.csv_dir}/{self.train_dataset}/folding_results.csv'
-        if args.external:
-            self.csv_path = f'{args.csv_dir}/{self.train_dataset}/folding_results_external.csv'
+        self.csv_path = f'{self.csv_dir}/folding_results.csv'
+        if not os.path.exists(self.csv_path):
+            os.makedirs(self.csv_dir, exist_ok=True)
+            with open(self.csv_path, 'w', newline='') as f:
+                w = csv.writer(f)
+                w.writerow(['model','log_name','folding_rate_mean','folding_rate_std'])
         super().__init__(model_path, args)
         
     def test(self):

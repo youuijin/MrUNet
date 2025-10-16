@@ -8,22 +8,40 @@ from utils.loss import MSE_loss, NCC_loss, SSIM_loss
 
 import nibabel as nib
 import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
 
 class Affine_tester:
     def __init__(self, model_path, args):
         # check already tested)
         self.log_name = model_path
         
-        self.csv_dir = args.csv_dir
-        self.test_dataset = args.dataset
+        self.test_dataset = args.test_dataset
         self.test_method = args.test_method
         self.pair_test = args.pair_test
+        self.csv_subdir = f'{args.csv_dir}/train_OASIS/test_{self.test_dataset}' # save in OASIS 
 
         if self.test_dataset == 'OASIS':
             self.label_path = 'data/OASIS_label_core'
         elif self.test_dataset == 'DLBS':
-            self.label_path = 'data/DLBS_label_35'
+            self.label_path = 'data/DLBS_label_core'
+        elif self.test_dataset in ['FDG_MRI', 'FDG_PET']:
+            self.label_path = 'data/FDG_label'
         
+        if self.test_method == 'quant':
+            assert args.label_path is not None
+            self.pet_dir = "data/FDG_PET_percent"
+            self.label_path = args.label_path
+            if self.label_path == "data/FDG_label_cortex":
+                self.dice_type = 'dice6'
+                self.seg_num = 6
+            elif self.label_path == "data/FDG_label":
+                self.dice_type = 'dice35'
+                self.seg_num = 35
+            else:
+                self.dice_type = 'dice70'
+                self.seg_num = 70
+
         if args.pair_test:
             _, _, self.save_loader = set_paired_dataloader_usingcsv(self.test_dataset, 'data/data_list', batch_size=1, return_path=True, numpy=False)
         else:
@@ -63,10 +81,12 @@ class Affine_tester:
             self.test_similar()
         elif self.test_method == 'blur':
             self.test_blur()
+        elif self.test_method == 'quant':
+            self.test_quant()
     
     def test_blur(self):
         self.save_dir = f'visualization/{self.test_dataset}/avg_template'
-        self.csv_path = f'{self.csv_dir}/{self.test_dataset}/blur_results.csv'
+        self.csv_path = f'{self.csv_subdir}/blur_results.csv'
         
         tested = self.check_tested(self.log_name)
         self.already_tested = False
@@ -117,7 +137,7 @@ class Affine_tester:
         return torch.tensor(1.0) if (size1 + size2 == 0) else 2.0 * intersection / (size1 + size2)
 
     def test_dice(self):
-        self.csv_path = f'{self.csv_dir}/{self.test_dataset}/dice_results.csv'
+        self.csv_path = f'{self.csv_subdir}/dice_results.csv'
 
         tested = self.check_tested(self.log_name)
         self.already_tested = False
@@ -137,6 +157,8 @@ class Affine_tester:
                 temp_seg = nib.load(f"{self.label_path}/{template_path.split('/')[-1]}").get_fdata().astype(np.float32)
                 temp_seg = torch.tensor(temp_seg).unsqueeze(0).unsqueeze(0).cuda()
             if not os.path.exists(f"{self.label_path}/{img_path.split('/')[-1]}"):
+                print('No file:', f"{self.label_path}/{img_path.split('/')[-1]}")
+                exit()
                 continue
             cnt += 1
             seg = nib.load(f"{self.label_path}/{img_path.split('/')[-1]}").get_fdata().astype(np.float32)
@@ -166,7 +188,7 @@ class Affine_tester:
         self.save_results(self.csv_path, results)
 
     def test_similar(self):
-        self.csv_path = f'{self.csv_dir}/{self.test_dataset}/similar_results.csv'
+        self.csv_path = f'{self.csv_subdir}/similar_results.csv'
 
         tested = self.check_tested(self.log_name)
         self.already_tested = False
@@ -193,6 +215,368 @@ class Affine_tester:
 
         results = ['None', self.log_name, mse.mean(), mse.std(), ncc.mean(), ncc.std(), ssim.mean(), ssim.std()]
         self.save_results(self.csv_path, results)
+
+    def test_quant(self):
+        self.csv_subdir = f'{self.csv_subdir}/quant/quant_{self.seg_num}'
+        self.csv_path = f'{self.csv_subdir}/quant_global.csv'
+        tested = self.check_tested(self.log_name)
+        self.already_tested = False
+        if tested:
+            self.already_tested = True
+            return
+        if self.dice_type == 'dice6':
+            self.label_name = {
+                1: 'frontal',
+                2: 'parietal',
+                3: 'temporal',
+                4: 'occipital',
+                5: 'subcortical',
+                6: 'cerebellum'
+            }
+        elif self.dice_type == 'dice35':
+            # cerebellum cortex : 6, 24
+            # remove : 18, 34
+            self.label_name = {
+                1: 'Left-Cerebral-White-Matter',
+                2: 'Left-Cerebral-Cortex',
+                3: 'Left-Lateral-Ventricle',
+                4: 'Left-Inf-Lat-Vent',
+                5: 'Left-Cerebellum-Exterior',
+                6: 'Left-Cerebellum-Cortex',
+                7: 'Left-Thalamus',
+                8: 'Left-Caudate',
+                9: 'Left-Putamen',
+                10: 'Left-Pallidum',
+                11: '3rd-Ventricle',
+                12: '4th-Ventricle',
+                13: 'Brain-Stem',
+                14: 'Left-Hippocampus',
+                15: 'Left-Amygdala',
+                16: 'Left-Accumbens-area',
+                17: 'Left-VentralDC',
+                19: 'Left-choroid-plexus',
+                20: 'Right-Cerebral-White-Matter',
+                21: 'Right-Cerebral-Cortex',
+                22: 'Right-Lateral-Ventricle',
+                23: 'Right-Inf-Lat-Vent',
+                24: 'Right-Cerebellum-White-Matter',
+                25: 'Right-Cerebellum-Cortex',
+                26: 'Right-Thalamus',
+                27: 'Right-Caudate',
+                28: 'Right-Putamen',
+                29: 'Right-Pallidum',
+                30: 'Right-Hippocampus',
+                31: 'Right-Amygdala',
+                32: 'Right-Accumbens-area',
+                33: 'Right-VentralDC',
+                35: 'Right-choroid-plexus'
+            }
+        else:
+            # cerebellum cortex : 69, 70
+            self.label_name={
+                1: 'ctx-lh-bankssts',
+                2: 'ctx-lh-caudalanteriorcingulate',
+                3: 'ctx-lh-caudalmiddlefrontal',
+                4: 'ctx-lh-cuneus',
+                5: 'ctx-lh-entorhinal',
+                6: 'ctx-lh-fusiform',
+                7: 'ctx-lh-inferiorparietal',
+                8: 'ctx-lh-inferiortemporal',
+                9: 'ctx-lh-isthmuscingulate',
+                10: 'ctx-lh-lateraloccipital',
+                11: 'ctx-lh-lateralorbitofrontal',
+                12: 'ctx-lh-lingual',
+                13: 'ctx-lh-medialorbitofrontal',
+                14: 'ctx-lh-middletemporal',
+                15: 'ctx-lh-parahippocampal',
+                16: 'ctx-lh-paracentral',
+                17: 'ctx-lh-parsopercularis',
+                18: 'ctx-lh-parsorbitalis',
+                19: 'ctx-lh-parstriangularis',
+                20: 'ctx-lh-pericalcarine',
+                21: 'ctx-lh-postcentral',
+                22: 'ctx-lh-posteriorcingulate',
+                23: 'ctx-lh-precentral',
+                24: 'ctx-lh-precuneus',
+                25: 'ctx-lh-rostralanteriorcingulate',
+                26: 'ctx-lh-rostralmiddlefrontal',
+                27: 'ctx-lh-superiorfrontal',
+                28: 'ctx-lh-superiorparietal',
+                29: 'ctx-lh-superiortemporal',
+                30: 'ctx-lh-supramarginal',
+                31: 'ctx-lh-frontalpole',
+                32: 'ctx-lh-temporalpole',
+                33: 'ctx-lh-transversetemporal',
+                34: 'ctx-lh-insula',
+                35: 'ctx-rh-bankssts',
+                36: 'ctx-rh-caudalanteriorcingulate',
+                37: 'ctx-rh-caudalmiddlefrontal',
+                38: 'ctx-rh-cuneus',
+                39: 'ctx-rh-entorhinal',
+                40: 'ctx-rh-fusiform',
+                41: 'ctx-rh-inferiorparietal',
+                42: 'ctx-rh-inferiortemporal',
+                43: 'ctx-rh-isthmuscingulate',
+                44: 'ctx-rh-lateraloccipital',
+                45: 'ctx-rh-lateralorbitofrontal',
+                46: 'ctx-rh-lingual',
+                47: 'ctx-rh-medialorbitofrontal',
+                48: 'ctx-rh-middletemporal',
+                49: 'ctx-rh-parahippocampal',
+                50: 'ctx-rh-paracentral',
+                51: 'ctx-rh-parsopercularis',
+                52: 'ctx-rh-parsorbitalis',
+                53: 'ctx-rh-parstriangularis',
+                54: 'ctx-rh-pericalcarine',
+                55: 'ctx-rh-postcentral',
+                56: 'ctx-rh-posteriorcingulate',
+                57: 'ctx-rh-precentral',
+                58: 'ctx-rh-precuneus',
+                59: 'ctx-rh-rostralanteriorcingulate',
+                60: 'ctx-rh-rostralmiddlefrontal',
+                61: 'ctx-rh-superiorfrontal',
+                62: 'ctx-rh-superiorparietal',
+                63: 'ctx-rh-superiortemporal',
+                64: 'ctx-rh-supramarginal',
+                65: 'ctx-rh-frontalpole',
+                66: 'ctx-rh-temporalpol',
+                67: 'ctx-rh-transversetemporal',
+                68: 'ctx-rh-insula',
+                69: 'Left-Cerebellum-Cortex',
+                70: 'Right-Cerebellum-Cortex'
+            }
+        
+        self.plot_save_dir = f"visualization/R2_plot/Affine"
+        if self.dice_type == 'dice35':
+            self.plot_save_dir = f"visualization/R2_plot_35/Affine"
+        elif self.dice_type == 'dice70':
+            self.plot_save_dir = f"visualization/R2_plot_70/Affine"
+        os.makedirs(self.plot_save_dir, exist_ok=True)
+
+        if self.dice_type == 'dice35':
+            temp_seg = nib.load('data/mni152_label.nii').get_fdata()
+        else:
+            temp_seg = nib.load(f'{self.label_path}/template_T1w_MRI.nii.gz').get_fdata()
+        temp_seg = torch.tensor(temp_seg).unsqueeze(0).unsqueeze(0).cuda()
+
+        origin_SUVrs = [[] for _ in range(self.seg_num)] # for all labels + global
+        moved_SUVrs = [[] for _ in range(self.seg_num)] # for all labels + global
+        cnt = 0
+
+        for img, template, _, _, _, path in tqdm(self.save_loader):
+            # img, template: MR images
+            path = path[0]
+            sub_name = path.split('/')[-1].split("_")[0] # sub-N
+            seg_path = f"{self.label_path}/{sub_name}_T1w_MRI.nii.gz"
+            pet_path = f"{self.pet_dir}/core_{sub_name}_FDG_PET.nii.gz"
+
+            if not os.path.exists(seg_path) or not os.path.exists(pet_path):
+                print(seg_path, pet_path)
+                print("No Segments or PET scans")
+                continue
+            cnt += 1
+
+            seg = nib.load(seg_path).get_fdata().astype(np.float32)
+            seg = torch.tensor(seg).unsqueeze(0).unsqueeze(0).cuda()
+            pet = nib.load(pet_path).get_fdata().astype(np.float32)
+            pet = torch.tensor(pet).unsqueeze(0).unsqueeze(0).cuda()
+
+            img, template = img.unsqueeze(1).cuda(), template.unsqueeze(1).cuda() # [B, D, H, W] -> [B, 1, D, H, W]
+            # no deformation
+            deformed_pet = pet 
+            
+            # calc reference region (6)
+            if self.seg_num == 6:
+                ref_num = [6]
+            elif self.seg_num == 35:
+                ref_num = [6, 24]
+            else:
+                ref_num = [69, 70]
+            origin_suv_ref = self.calc_suv(seg, pet, ref_num)
+            moved_suv_ref = self.calc_suv(temp_seg, deformed_pet, ref_num)
+
+            for label in tqdm(self.label_name, position=1, leave=False): # label: 1, 2, 3, 4, 5
+                origin_suv = self.calc_suv(seg, pet, label)
+                moved_suv = self.calc_suv(temp_seg, deformed_pet, label)
+                origin_SUVrs[label-1].append((origin_suv/origin_suv_ref).item())
+                moved_SUVrs[label-1].append((moved_suv/moved_suv_ref).item())
+
+            # calculate global
+            origin_suv = self.calc_suv(seg, pet, [i for i in self.label_name if i not in ref_num])
+            moved_suv = self.calc_suv(temp_seg, deformed_pet, [i for i in self.label_name if i not in ref_num])
+            origin_SUVrs[self.seg_num-1].append((origin_suv/origin_suv_ref).item())
+            moved_SUVrs[self.seg_num-1].append((moved_suv/moved_suv_ref).item())
+
+        iccs = []
+
+        if self.seg_num == 6:
+            # calculate regression parameter
+            for idx, label_name in enumerate(['frontal', 'parietal', 'temporal', 'occipital', 'subcortical', 'global']):
+                o, m = origin_SUVrs[idx], moved_SUVrs[idx]
+                slope, y_inter, r2_value = self.regression_params(o, m)
+                icc = self.icc_two_vectors(o, m)
+                iccs.append(icc)
+
+                results = ['None', self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
+                if not os.path.exists(f'{self.csv_subdir}/quant_{label_name}.csv'):
+                    header = ['model','log_name','ICC','slope','y-intercept','R2']
+                    with open(f'{self.csv_subdir}/quant_{label_name}.csv', mode="w", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow(header)
+                self.save_results(f'{self.csv_subdir}/quant_{label_name}.csv', results)
+
+            iccs = np.array(iccs)
+
+            for label, (o, m, icc) in enumerate(zip(origin_SUVrs, moved_SUVrs, iccs)):
+                if label == 5:
+                    region_name = 'global'
+                else:
+                    region_name = self.label_name[label+1]
+                self.save_plot(o, m, region_name, icc)
+            
+        else:
+            iccs = [0. for _ in range(self.seg_num)]
+            # calculate regression parameter
+            for idx, label_name in self.label_name.items():
+                if idx in ref_num:
+                    continue
+                o, m = origin_SUVrs[idx-1], moved_SUVrs[idx-1]
+                slope, y_inter, r2_value = self.regression_params(o, m)
+                icc = self.icc_two_vectors(o, m)
+                iccs[idx-1] = icc
+
+                results = ['None', self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
+                if not os.path.exists(f'{self.csv_subdir}/quant_{label_name}.csv'):
+                    header = ['model','log_name','ICC','slope','y-intercept','R2']
+                    with open(f'{self.csv_subdir}/quant_{label_name}.csv', mode="w", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow(header)
+                self.save_results(f'{self.csv_subdir}/quant_{label_name}.csv', results)
+           
+            # for global  
+            o, m = origin_SUVrs[self.seg_num-1], moved_SUVrs[self.seg_num-1]
+            slope, y_inter, r2_value = self.regression_params(o, m)
+            icc = self.icc_two_vectors(o, m)
+            iccs[self.seg_num-1] = icc
+
+            results = ['None', self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
+            if not os.path.exists(f'{self.csv_subdir}/quant_global.csv'):
+                header = ['model','log_name','ICC','slope','y-intercept','R2']
+                with open(f'{self.csv_subdir}/quant_global.csv', mode="w", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(header)
+            self.save_results(f'{self.csv_subdir}/quant_global.csv', results)
+
+            iccs = np.array(iccs)
+
+            for idx, label_name in self.label_name.items():
+                if idx in ref_num:
+                    continue
+                self.save_plot(origin_SUVrs[idx-1], moved_SUVrs[idx-1], label_name, iccs[idx-1])
+
+            self.save_plot(origin_SUVrs[self.seg_num-1], moved_SUVrs[self.seg_num-1], 'global', iccs[self.seg_num-1])
+    
+    def save_plot(self, origin, moved, region_name, icc):
+        origin = np.asarray(origin, dtype=float)
+        moved = np.asarray(moved, dtype=float)
+        plt.figure(figsize=(6,6))
+        # (1) Scatter plot
+        plt.scatter(origin, moved, color='blue', s=50, alpha=0.7, label="SUVr values")
+
+        # (2) Linear regression line
+        coef = np.polyfit(origin, moved, 1)
+        poly_fn = np.poly1d(coef)
+        x_line = np.linspace(origin.min(), origin.max(), 100)
+        plt.plot(x_line, poly_fn(x_line), color='red', linewidth=2, label=f"Fit line (ICC={icc:.2f})")
+
+        # (3) y=x 점선
+        plt.plot(x_line, x_line, 'k--', linewidth=1.5, label="y=x")
+
+        # 축 레이블 및 범례
+        plt.xlabel("SUVr in individual space")
+        plt.ylabel("SUVr in template space")
+        plt.title(f"Correlation of SUVr {region_name}")
+        plt.legend()
+        plt.axis("equal")   # x, y 축 스케일 같게
+        plt.grid(True, linestyle="--", alpha=0.6)
+
+        plt.savefig(f'{self.plot_save_dir}/{region_name}.png')
+        plt.close()
+    
+    def calc_suv(self, seg, img, labels):
+        if type(labels) == int:
+            labels = [labels]
+        seg = seg.int()
+        mask = torch.zeros_like(seg, dtype=torch.bool)
+        for l in labels:
+            mask |= (seg == l)
+        intersection = (mask * img).sum().float()
+        return intersection / mask.sum()
+    
+    def regression_params(self, x, y):
+        x = np.asarray(x).reshape(-1,1)
+        y = np.asarray(y)
+        m = LinearRegression().fit(x, y)
+        return m.coef_[0], m.intercept_, m.score(x, y)  # slope, intercept, R²
+    
+    def icc_matrix(self, X, icc_type="ICC2_1"):
+        """
+        X: shape [N, k]  (N=피험자 수, k=방법/측정자 수)
+        icc_type: "ICC2_1" (absolute agreement), "ICC3_1" (consistency)
+        반환: float (ICC 값)
+        참고: McGraw & Wong (1996), Shrout & Fleiss 표기
+        """
+        X = np.asarray(X, dtype=float)
+        # NaN이 있는 행은 제거 (complete-case)
+        mask = ~np.isnan(X).any(axis=1)
+        X = X[mask]
+        n, k = X.shape
+        if n < 2 or k < 2:
+            raise ValueError("피험자>=2, 방법>=2 필요합니다.")
+
+        # 평균들
+        mean_subject = X.mean(axis=1, keepdims=True)   # [n,1]
+        mean_rater   = X.mean(axis=0, keepdims=True)   # [1,k]
+        grand_mean   = X.mean()
+
+        # 제곱합(2원 분산분석)
+        ss_total = ((X - grand_mean) ** 2).sum()
+        ss_rows  = (k * ((mean_subject - grand_mean) ** 2)).sum()  # subjects 효과
+        ss_cols  = (n * ((mean_rater   - grand_mean) ** 2)).sum()  # raters/방법 효과
+        ss_err   = ss_total - ss_rows - ss_cols
+
+        # 자유도
+        df_rows = n - 1
+        df_cols = k - 1
+        df_err  = (n - 1) * (k - 1)
+
+        # 평균제곱
+        ms_rows = ss_rows / df_rows     # MSR (subjects)
+        ms_cols = ss_cols / df_cols     # MSC (raters)
+        ms_err  = ss_err  / df_err      # MSE (residual)
+
+        t = icc_type.upper()
+        if t in ["ICC2_1", "ICC(2,1)", "A,1", "ICC2"]:
+            # Two-way random, absolute agreement, single rater
+            icc = (ms_rows - ms_err) / (ms_rows + (k - 1)*ms_err + (k*(ms_cols - ms_err)/n))
+        elif t in ["ICC3_1", "ICC(3,1)", "C,1", "ICC3"]:
+            # Two-way mixed, consistency, single rater
+            icc = (ms_rows - ms_err) / (ms_rows + (k - 1)*ms_err)
+        else:
+            raise ValueError(f"지원하지 않는 icc_type: {icc_type}")
+        return float(icc)
+
+    def icc_two_vectors(self, a, b, icc_type="ICC2_1"):
+        """
+        편의함수: 두 방법(예: individual vs template)만 있을 때
+        a, b: 길이 N의 1D 배열
+        """
+        a = np.asarray(a, dtype=float)
+        b = np.asarray(b, dtype=float)
+        X = np.stack([a, b], axis=1)  # [N,2]
+        return self.icc_matrix(X, icc_type=icc_type)
+    
+
 
 def denormalize_image(normalized_img, img_min, img_max):
     img_min, img_max = img_min.to(normalized_img.device), img_max.to(normalized_img.device)

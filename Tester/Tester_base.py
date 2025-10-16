@@ -58,24 +58,29 @@ class Tester:
             _, _, self.save_loader = set_dataloader_usingcsv(self.test_dataset, 'data/data_list', args.template_path, 1, numpy=False)
 
     def set_dataset(self, args):
-        # add dataset 
+        assert args.test_dataset in [None, 'OASIS', 'DLBS', 'FDG_MRI', 'FDG_PET']
+        # set train dataset
         if (args.model_dir and 'DLBS' in args.model_dir) or (args.model_path and 'DLBS' in args.model_path):
             self.train_dataset = 'DLBS'
-            if args.external:
-                self.test_dataset = 'OASIS'
-            else:
-                self.test_dataset = "DLBS"
         else:
             self.train_dataset = 'OASIS'
-            if args.external:
-                self.test_dataset = "DLBS"
-            else:
-                self.test_dataset = 'OASIS'
 
+        # set test dataset
+        if args.test_dataset is None:
+            # add dataset 
+            self.test_dataset = self.train_dataset
+        else:
+            self.test_dataset = args.test_dataset
+        
         if self.test_dataset == 'OASIS':
             self.label_path = 'data/OASIS_label_core'
         elif self.test_dataset == 'DLBS':
             self.label_path = 'data/DLBS_label_core'
+        elif self.test_dataset in ['FDG_MRI', 'FDG_PET']:
+            self.label_path = 'data/FDG_label'
+
+        self.csv_dir = f'{args.csv_dir}/train_{self.train_dataset}/test_{self.test_dataset}'
+                
     
     def save_results(self, csv_path, row):
         with open(csv_path, 'a', encoding='utf-8', newline='') as f:

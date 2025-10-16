@@ -1,6 +1,6 @@
 from Tester.Tester_base import Tester
 from utils.utils import apply_deformation_using_disp
-import torch, cv2, os
+import torch, cv2, os, csv
 import nibabel as nib
 import numpy as np
 
@@ -9,11 +9,13 @@ from tqdm import tqdm
 class Blur_Tester(Tester):
     def __init__(self, model_path, args):
         self.set_dataset(args)
-        self.csv_path = f'{args.csv_dir}/{self.train_dataset}/blur_results.csv'
+        self.csv_path = f'{self.csv_dir}/blur_results.csv'
+        if not os.path.exists(self.csv_path):
+            os.makedirs(self.csv_dir, exist_ok=True)
+            with open(self.csv_path, 'w', newline='') as f:
+                w = csv.writer(f)
+                w.writerow(['model','log_name','std','laplacian','tenegrad','fft'])
         self.save_dir = f'visualization/{self.train_dataset}/avg_template'
-        if args.external:
-            self.csv_path = f'{args.csv_dir}/{self.train_dataset}/blur_results_external.csv'
-            self.save_dir = f'visualization/{self.train_dataset}/avg_template_external'
         os.makedirs(self.save_dir, exist_ok=True)
         super().__init__(model_path, args)
 

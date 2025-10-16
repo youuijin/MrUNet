@@ -2,7 +2,7 @@ from Tester.Tester_base import Tester
 from utils.dataset import set_dataloader, set_dataloader_usingcsv, set_paired_dataloader_usingcsv
 from utils.utils import apply_deformation_using_disp
 
-import torch, os
+import torch, os, csv
 import numpy as np
 import nibabel as nib
 from tqdm import tqdm
@@ -10,10 +10,16 @@ from tqdm import tqdm
 class DSC_Tester(Tester):
     def __init__(self, model_path, args):
         self.set_dataset(args)
+        self.csv_path = f'{self.csv_dir}/dice_results.csv'
         self.pair_test = args.pair_test
-        self.csv_path = f'{args.csv_dir}/{self.train_dataset}/dice_results.csv'
-        if args.external:
-            self.csv_path = f'{args.csv_dir}/{self.train_dataset}/dice_results_external.csv'
+        if not os.path.exists(self.csv_path):
+            os.makedirs(self.csv_dir, exist_ok=True)
+            with open(self.csv_path, 'w', newline='') as f:
+                w = csv.writer(f)
+                w.writerow(['model','log_name','avg_dice_mean','avg_dice_std','Left-Cerebral-White-Matter','Left-Cerebral-Cortex','Left-Lateral-Ventricle','Left-Inf-Lat-Vent','Left-Cerebellum-Exterior','Left-Cerebellum-Cortex','Left-Thalamus','Left-Caudate','Left-Putamen','Left-Pallidum','3rd-Ventricle','4th-Ventricle','Brain-Stem','Left-Hippocampus','Left-Amygdala','Left-Accumbens-area','Left-VentralDC','Left-choroid-plexus','Right-Cerebral-White-Matter','Right-Cerebral-Cortex','Right-Lateral-Ventricle','Right-Inf-Lat-Vent','Right-Cerebellum-White-Matter','Right-Cerebellum-Cortex','Right-Thalamus','Right-Caudate','Right-Putamen','Right-Pallidum','Right-Hippocampus','Right-Amygdala','Right-Accumbens-area','Right-VentralDC','Right-choroid-plexus'])
+            with open(f'{self.csv_dir}/dice_results_extracted.csv', 'w', newline='') as f:
+                w = csv.writer(f)
+                w.writerow(['model','log_name','avg_dice_mean','avg_dice_std','Left-Cerebral-White-Matter','Left-Cerebral-Cortex','Left-Cerebellum-Cortex','Left-Thalamus','Left-Caudate','Left-Putamen','3rd-Ventricle','4th-Ventricle','Brain-Stem','Right-Cerebral-White-Matter','Right-Cerebral-Cortex','Right-Cerebellum-Cortex','Right-Thalamus','Right-Caudate','Right-Putamen'])
         super().__init__(model_path, args)
         if args.pair_test:
             _, _, self.save_loader = set_paired_dataloader_usingcsv(self.test_dataset, 'data/data_list', batch_size=1, numpy=False, return_path=True)

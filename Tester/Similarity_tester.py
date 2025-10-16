@@ -2,7 +2,7 @@ from Tester.Tester_base import Tester
 from utils.utils import apply_deformation_using_disp
 from utils.loss import MSE_loss, NCC_loss, SSIM_loss
 
-import torch
+import torch, os, csv
 import numpy as np
 
 from tqdm import tqdm
@@ -10,9 +10,12 @@ from tqdm import tqdm
 class Similarity_Tester(Tester):
     def __init__(self, model_path, args):
         self.set_dataset(args)
-        self.csv_path = f'{args.csv_dir}/{self.train_dataset}/similar_results.csv'
-        if args.external:
-            self.csv_path = f'{args.csv_dir}/{self.train_dataset}/similar_results_external.csv'
+        self.csv_path = f'{self.csv_dir}/similar_results.csv'
+        if not os.path.exists(self.csv_path):
+            os.makedirs(self.csv_dir, exist_ok=True)
+            with open(self.csv_path, 'w', newline='') as f:
+                w = csv.writer(f)
+                w.writerow(['model','log_name','MSE_mean','MSE_std','NCC_mean','NCC_std','SSIM_mean','SSIM_std'])
         super().__init__(model_path, args)
 
     def test(self):

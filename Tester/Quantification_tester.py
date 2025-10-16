@@ -13,23 +13,24 @@ class Quantification_tester(Tester):
     # need PET, paired MRI segmentation
     def __init__(self, model_path, args):
         self.set_dataset(args)
-        self.test_dataset = 'FDG_MRI'
+        assert self.test_dataset == 'FDG_MRI'
         self.pet_dir = 'data/FDG_PET_percent'
         
         self.label_path = args.label_path
-        if args.label_path == "data/FDG_label_cortex":
+        if self.label_path == "data/FDG_label_cortex":
             self.dice_type = 'dice6'
             self.seg_num = 6
-        else:
+        elif self.label_path == "data/FDG_label":
             self.dice_type = 'dice35'
             self.seg_num = 35
-        self.csv_dir = f'{args.csv_dir}/{self.train_dataset}/quant/quant_{self.seg_num}'
-        self.csv_path = f"{self.csv_dir}/quant_global.csv"
+        else:
+            self.dice_type = 'dice70'
+            self.seg_num = 70
+        self.csv_sub_dir = f'{self.csv_dir}/quant/quant_{self.seg_num}'
+        self.csv_path = f"{self.csv_sub_dir}/quant_global.csv"
         self.plot = True
 
         super().__init__(model_path, args)
-        
-        self.trained_dataset = model_path.split("/")[-4]
 
         if args.pair_test:
             _, _, self.save_loader = set_paired_dataloader_usingcsv(self.test_dataset, 'data/data_list', batch_size=1, numpy=False, return_path=True)
@@ -45,7 +46,7 @@ class Quantification_tester(Tester):
                 5: 'subcortical',
                 6: 'cerebellum'
             }
-        else:
+        elif self.dice_type == 'dice35':
             # cerebellum cortex : 6, 24
             # remove : 18, 34
             self.label_name = {
@@ -83,10 +84,86 @@ class Quantification_tester(Tester):
                 33: 'Right-VentralDC',
                 35: 'Right-choroid-plexus'
             }
+        else:
+            # cerebellum cortex : 69, 70
+            self.label_name={
+                1: 'ctx-lh-bankssts',
+                2: 'ctx-lh-caudalanteriorcingulate',
+                3: 'ctx-lh-caudalmiddlefrontal',
+                4: 'ctx-lh-cuneus',
+                5: 'ctx-lh-entorhinal',
+                6: 'ctx-lh-fusiform',
+                7: 'ctx-lh-inferiorparietal',
+                8: 'ctx-lh-inferiortemporal',
+                9: 'ctx-lh-isthmuscingulate',
+                10: 'ctx-lh-lateraloccipital',
+                11: 'ctx-lh-lateralorbitofrontal',
+                12: 'ctx-lh-lingual',
+                13: 'ctx-lh-medialorbitofrontal',
+                14: 'ctx-lh-middletemporal',
+                15: 'ctx-lh-parahippocampal',
+                16: 'ctx-lh-paracentral',
+                17: 'ctx-lh-parsopercularis',
+                18: 'ctx-lh-parsorbitalis',
+                19: 'ctx-lh-parstriangularis',
+                20: 'ctx-lh-pericalcarine',
+                21: 'ctx-lh-postcentral',
+                22: 'ctx-lh-posteriorcingulate',
+                23: 'ctx-lh-precentral',
+                24: 'ctx-lh-precuneus',
+                25: 'ctx-lh-rostralanteriorcingulate',
+                26: 'ctx-lh-rostralmiddlefrontal',
+                27: 'ctx-lh-superiorfrontal',
+                28: 'ctx-lh-superiorparietal',
+                29: 'ctx-lh-superiortemporal',
+                30: 'ctx-lh-supramarginal',
+                31: 'ctx-lh-frontalpole',
+                32: 'ctx-lh-temporalpole',
+                33: 'ctx-lh-transversetemporal',
+                34: 'ctx-lh-insula',
+                35: 'ctx-rh-bankssts',
+                36: 'ctx-rh-caudalanteriorcingulate',
+                37: 'ctx-rh-caudalmiddlefrontal',
+                38: 'ctx-rh-cuneus',
+                39: 'ctx-rh-entorhinal',
+                40: 'ctx-rh-fusiform',
+                41: 'ctx-rh-inferiorparietal',
+                42: 'ctx-rh-inferiortemporal',
+                43: 'ctx-rh-isthmuscingulate',
+                44: 'ctx-rh-lateraloccipital',
+                45: 'ctx-rh-lateralorbitofrontal',
+                46: 'ctx-rh-lingual',
+                47: 'ctx-rh-medialorbitofrontal',
+                48: 'ctx-rh-middletemporal',
+                49: 'ctx-rh-parahippocampal',
+                50: 'ctx-rh-paracentral',
+                51: 'ctx-rh-parsopercularis',
+                52: 'ctx-rh-parsorbitalis',
+                53: 'ctx-rh-parstriangularis',
+                54: 'ctx-rh-pericalcarine',
+                55: 'ctx-rh-postcentral',
+                56: 'ctx-rh-posteriorcingulate',
+                57: 'ctx-rh-precentral',
+                58: 'ctx-rh-precuneus',
+                59: 'ctx-rh-rostralanteriorcingulate',
+                60: 'ctx-rh-rostralmiddlefrontal',
+                61: 'ctx-rh-superiorfrontal',
+                62: 'ctx-rh-superiorparietal',
+                63: 'ctx-rh-superiortemporal',
+                64: 'ctx-rh-supramarginal',
+                65: 'ctx-rh-frontalpole',
+                66: 'ctx-rh-temporalpol',
+                67: 'ctx-rh-transversetemporal',
+                68: 'ctx-rh-insula',
+                69: 'Left-Cerebellum-Cortex',
+                70: 'Right-Cerebellum-Cortex'
+            }
 
         self.plot_save_dir = f"visualization/R2_plot/{'/'.join(model_path.split('/')[1:])}"
         if self.dice_type == 'dice35':
             self.plot_save_dir = f"visualization/R2_plot_35/{'/'.join(model_path.split('/')[1:])}"
+        elif self.dice_type == 'dice70':
+            self.plot_save_dir = f"visualization/R2_plot_70/{'/'.join(model_path.split('/')[1:])}"
         os.makedirs(self.plot_save_dir, exist_ok=True)
 
     def calc_suv(self, seg, img, labels):
@@ -175,10 +252,10 @@ class Quantification_tester(Tester):
 
 
     def test(self):
-        if self.dice_type == 'dice6':
-            temp_seg = nib.load('data/FDG_label_cortex/template_T1w_MRI.nii.gz').get_fdata()
-        else:
+        if self.dice_type == 'dice35':
             temp_seg = nib.load('data/mni152_label.nii').get_fdata()
+        else:
+            temp_seg = nib.load(f'{self.label_path}/template_T1w_MRI.nii.gz').get_fdata()
         temp_seg = torch.tensor(temp_seg).unsqueeze(0).unsqueeze(0).cuda()
 
         origin_SUVrs = [[] for _ in range(self.seg_num)] # for all labels + global
@@ -217,8 +294,10 @@ class Quantification_tester(Tester):
             # calc reference region (6)
             if self.seg_num == 6:
                 ref_num = [6]
-            else:
+            elif self.seg_num == 35:
                 ref_num = [6, 24]
+            else:
+                ref_num = [69, 70]
             origin_suv_ref = self.calc_suv(seg, pet, ref_num)
             moved_suv_ref = self.calc_suv(temp_seg, deformed_pet, ref_num)
 
@@ -244,13 +323,13 @@ class Quantification_tester(Tester):
                 icc = self.icc_two_vectors(o, m)
                 iccs.append(icc)
 
-                results = [self.trained_dataset, self.model_type, self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
-                if not os.path.exists(f'{self.csv_dir}/quant_{label_name}.csv'):
-                    header = ['train_dataset','model','log_name','ICC','slope','y-intercept','R2']
-                    with open(f'{self.csv_dir}/quant_{label_name}.csv', mode="w", newline="") as f:
+                results = [self.train_dataset, self.model_type, self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
+                if not os.path.exists(f'{self.csv_sub_dir}/quant_{label_name}.csv'):
+                    header = ['model','log_name','ICC','slope','y-intercept','R2']
+                    with open(f'{self.csv_sub_dir}/quant_{label_name}.csv', mode="w", newline="") as f:
                         writer = csv.writer(f)
                         writer.writerow(header)
-                self.save_results(f'{self.csv_dir}/quant_{label_name}.csv', results)
+                self.save_results(f'{self.csv_sub_dir}/quant_{label_name}.csv', results)
 
             iccs = np.array(iccs)
 
@@ -272,13 +351,13 @@ class Quantification_tester(Tester):
                 icc = self.icc_two_vectors(o, m)
                 iccs[idx-1] = icc
 
-                results = [self.trained_dataset, self.model_type, self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
-                if not os.path.exists(f'{self.csv_dir}/quant_{label_name}.csv'):
-                    header = ['train_dataset','model','log_name','ICC','slope','y-intercept','R2']
-                    with open(f'{self.csv_dir}/quant_{label_name}.csv', mode="w", newline="") as f:
+                results = [self.train_dataset, self.model_type, self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
+                if not os.path.exists(f'{self.csv_sub_dir}/quant_{label_name}.csv'):
+                    header = ['model','log_name','ICC','slope','y-intercept','R2']
+                    with open(f'{self.csv_sub_dir}/quant_{label_name}.csv', mode="w", newline="") as f:
                         writer = csv.writer(f)
                         writer.writerow(header)
-                self.save_results(f'{self.csv_dir}/quant_{label_name}.csv', results)
+                self.save_results(f'{self.csv_sub_dir}/quant_{label_name}.csv', results)
            
             # for global  
             o, m = origin_SUVrs[self.seg_num-1], moved_SUVrs[self.seg_num-1]
@@ -286,13 +365,13 @@ class Quantification_tester(Tester):
             icc = self.icc_two_vectors(o, m)
             iccs[self.seg_num-1] = icc
 
-            results = [self.trained_dataset, self.model_type, self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
-            if not os.path.exists(f'{self.csv_dir}/quant_global.csv'):
-                header = ['train_dataset','model','log_name','ICC','slope','y-intercept','R2']
-                with open(f'{self.csv_dir}/quant_global.csv', mode="w", newline="") as f:
+            results = [self.train_dataset, self.model_type, self.log_name, round(icc, 5), round(slope, 5), round(y_inter, 5), round(r2_value, 5)]
+            if not os.path.exists(f'{self.csv_sub_dir}/quant_global.csv'):
+                header = ['model','log_name','ICC','slope','y-intercept','R2']
+                with open(f'{self.csv_sub_dir}/quant_global.csv', mode="w", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow(header)
-            self.save_results(f'{self.csv_dir}/quant_global.csv', results)
+            self.save_results(f'{self.csv_sub_dir}/quant_global.csv', results)
 
             iccs = np.array(iccs)
 
