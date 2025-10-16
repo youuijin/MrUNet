@@ -14,10 +14,10 @@ class VoxelMorph_Uncert_Trainer(Trainer):
         assert args.reg in ['tv', 'atv']
         assert args.method in ['VM-Un', 'VM-Un-diff']
         # setting log name first!
-        self.log_name = f'{args.method}_({args.reg}_{args.image_sigma}_{args.prior_lambda})'
+        self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.image_sigma}_{args.prior_lambda})'
         self.num_samples = args.num_samples
         if self.num_samples>1:
-            self.log_name = f'{args.method}_({args.reg}_{args.image_sigma}_{args.prior_lambda}_N{self.num_samples})'
+            self.log_name = f'{args.method}_{args.loss}({args.reg}_{args.image_sigma}_{args.prior_lambda}_N{self.num_samples})'
         self.method = args.method
 
         config={
@@ -34,7 +34,7 @@ class VoxelMorph_Uncert_Trainer(Trainer):
         self.out_channels = 6
         self.out_layers = 1
 
-        self.loss_fn = Uncert_Loss(args.reg, args.image_sigma, args.prior_lambda)
+        self.loss_fn = Uncert_Loss(args.loss, args.reg, args.image_sigma, args.prior_lambda)
         self.reset_logs()
 
         if 'diff' in args.method:

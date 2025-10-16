@@ -41,7 +41,7 @@ class MrRegNet_Uncert_Trainer(Trainer):
         self.out_channels = 6
         self.out_layers = 3
 
-        self.loss_fn = Uncert_Loss(args.reg, args.image_sigma, args.prior_lambda)
+        self.loss_fn = Uncert_Loss(args.loss, args.reg, args.image_sigma, args.prior_lambda)
         self.reset_logs()
 
         if 'diff' in args.method:

@@ -48,7 +48,12 @@ class Train_Loss:
         return tot_loss, sim_loss.item(), reg_loss.item()
     
 class Uncert_Loss:
-    def __init__(self, reg, image_sigma, prior_lambda):
+    def __init__(self, loss='MSE', reg='tvl2', image_sigma=0.02, prior_lambda=10.0):
+        if loss == 'MSE':
+            self.sim_fn = MSE_loss
+        elif loss == 'NCC':
+            self.sim_fn = NCC_loss
+
         # TODO: Select smoothness loss
         # if reg == 'tv':
         #     self.reg_fn = tv_loss_l2
@@ -134,7 +139,8 @@ class Uncert_Loss:
         """
         MSE reconstruction loss.
         """
-        return 1. / (2* self.image_sigma ** 2) * torch.mean((y_true - y_pred) ** 2)
+        # return 1. / (2* self.image_sigma ** 2) * torch.mean((y_true - y_pred) ** 2)
+        return 1. / (2* self.image_sigma ** 2) * self.sim_fn(y_true, y_pred)
 
     def __call__(self, warped, fixed, mean, std, only_kl=False, eps=1e-6):
         """
