@@ -47,6 +47,7 @@ class VoxelMorph_Uncert_Trainer(Trainer):
         std = std_list[-1]
 
         tot_loss = None
+        log_losses = [0, 0, 0, 0, 0]
         for _ in range(self.num_samples):
             if val==False:
                 # sample in Gaussian distribution
@@ -71,18 +72,18 @@ class VoxelMorph_Uncert_Trainer(Trainer):
             else:
                 tot_loss += loss
 
-            self.log_dict['Loss_tot'] += loss.item()
-            self.log_dict['Std_mean'] += sigma_loss
-            self.log_dict['Std_var'] += sigma_var
-            self.log_dict['Loss_sim'] += sim_loss
-            self.log_dict['Loss_reg'] += smoo_loss
+            log_losses[0] += loss.item()
+            log_losses[1] += sigma_loss
+            log_losses[2] += sigma_var
+            log_losses[3] += sim_loss
+            log_losses[4] += smoo_loss
 
         tot_loss /= self.num_samples
-        self.log_dict['Loss_tot'] += loss.item()/self.num_samples
-        self.log_dict['Std_mean'] += sigma_loss/self.num_samples
-        self.log_dict['Std_var'] += sigma_var/self.num_samples
-        self.log_dict['Loss_sim'] += sim_loss/self.num_samples
-        self.log_dict['Loss_reg'] += smoo_loss/self.num_samples
+        self.log_dict['Loss_tot'] += log_losses[0]/self.num_samples
+        self.log_dict['Std_mean'] += log_losses[1]/self.num_samples
+        self.log_dict['Std_var'] += log_losses[2]/self.num_samples
+        self.log_dict['Loss_sim'] += log_losses[3]/self.num_samples
+        self.log_dict['Loss_reg'] += log_losses[4]/self.num_samples
 
         if return_uncert:
             return tot_loss, deformed_img, std
